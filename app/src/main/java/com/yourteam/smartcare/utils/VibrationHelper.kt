@@ -9,6 +9,18 @@ class VibrationHelper(private val context: Context) {
 
     private val vibrator: Vibrator? = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
+    fun level1Vibrate() {
+        vibrate(SmartCareConstants.VIBRATION_SHORT)
+    }
+
+    fun level2Vibrate() {
+        vibrate(SmartCareConstants.VIBRATION_MEDIUM)
+    }
+
+    fun level3Vibrate() {
+        vibrate(SmartCareConstants.VIBRATION_LONG)
+    }
+
     fun vibrate(durationMillis: Long = 500) {
         // Create a LOCAL variable. This makes Kotlin 100% sure it's not null.
         val vib = vibrator ?: return

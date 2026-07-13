@@ -14,13 +14,12 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         return try {
-            Log.d(TAG, "🚀 ReminderWorker started! Triggering medication reminder.")
+            Log.d(TAG, "🚀 ReminderWorker started! Starting automatic escalation.")
 
-            // Create the EscalationManager and start Level 1
             val escalationManager = EscalationManager(applicationContext)
-            escalationManager.escalate(1, "Medicine")
+            escalationManager.startEscalation("Medicine")  // Starts the 5min→10min timer
 
-            Log.d(TAG, "✅ ReminderWorker finished successfully.")
+            Log.d(TAG, "✅ ReminderWorker finished. Escalation started.")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "❌ ReminderWorker failed", e)
