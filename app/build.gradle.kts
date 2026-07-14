@@ -1,3 +1,12 @@
+import java.util.Properties
+
+val secretsPropertiesFile = rootProject.file("secrets.properties")
+val secretsProperties = Properties()
+
+if (secretsPropertiesFile.exists()) {
+    secretsProperties.load(secretsPropertiesFile.inputStream())
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -17,6 +26,16 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Injecting keys into BuildConfig
+        buildConfigField("String", "LOCATIONIQ_API_KEY",
+            "\"${secretsProperties.getProperty("LOCATIONIQ_API_KEY") ?: ""}\"")
+
+        buildConfigField("String", "SUPABASE_URL",
+            "\"${secretsProperties.getProperty("SUPABASE_URL") ?: ""}\"")
+
+        buildConfigField("String", "SUPABASE_KEY",
+            "\"${secretsProperties.getProperty("SUPABASE_KEY") ?: ""}\"")
     }
 
     buildTypes {
@@ -36,10 +55,11 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15" // Updated for compatibility
+        kotlinCompilerExtensionVersion = "1.5.15"
     }
 }
 
@@ -56,7 +76,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // ─── SUPABASE (MODERNIZED) ───
-// ─── SUPABASE ───
     // These are the correct coordinates that exist in Maven Central
     implementation(platform("io.github.jan-tennert.supabase:bom:3.0.0"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
@@ -87,6 +106,8 @@ dependencies {
 
     // ─── GOOGLE PLAY SERVICES (LOCATION) ───
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    implementation("com.google.android.libraries.places:places:3.3.0")
 
     // ─── TESTING ───
     testImplementation(libs.junit)

@@ -5,8 +5,14 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import android.provider.Settings
 
 class NotificationHelper(private val context: Context) {
+
+    init {
+        // Automatically create channels when this class is used
+        createChannels()
+    }
 
     companion object {
         const val CHANNEL_REMINDER = "reminder_channel"
@@ -17,7 +23,7 @@ class NotificationHelper(private val context: Context) {
 
     fun createChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             val reminderChannel = NotificationChannel(
                 CHANNEL_REMINDER,
@@ -25,8 +31,6 @@ class NotificationHelper(private val context: Context) {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Reminders to take medication"
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500)
             }
             manager.createNotificationChannel(reminderChannel)
 
@@ -36,6 +40,7 @@ class NotificationHelper(private val context: Context) {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Critical health emergencies"
+                setSound(Settings.System.DEFAULT_ALARM_ALERT_URI, null)
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 1000, 500, 1000)
             }
@@ -49,11 +54,10 @@ class NotificationHelper(private val context: Context) {
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
             .build()
 
-        context.getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID_REMINDER, notification)
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID_REMINDER, notification)
     }
 
     fun showEmergency(title: String, message: String) {
@@ -62,10 +66,10 @@ class NotificationHelper(private val context: Context) {
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setAutoCancel(true)
+            .setOngoing(true) // Keeps it until the user clicks
             .build()
 
-        context.getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID_EMERGENCY, notification)
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID_EMERGENCY, notification)
     }
 }

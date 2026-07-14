@@ -4,34 +4,29 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
 
 class VibrationHelper(private val context: Context) {
 
-    private val vibrator: Vibrator? = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-
-    fun level1Vibrate() {
-        vibrate(SmartCareConstants.VIBRATION_SHORT)
-    }
-
-    fun level2Vibrate() {
-        vibrate(SmartCareConstants.VIBRATION_MEDIUM)
-    }
-
-    fun level3Vibrate() {
-        vibrate(SmartCareConstants.VIBRATION_LONG)
+    // Optimized for newer Android versions (API 31+) using VibratorManager
+    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+        vibratorManager?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     fun vibrate(durationMillis: Long = 500) {
-        // Create a LOCAL variable. This makes Kotlin 100% sure it's not null.
         val vib = vibrator ?: return
         if (!vib.hasVibrator()) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val effect = VibrationEffect.createOneShot(durationMillis, VibrationEffect.DEFAULT_AMPLITUDE)
-            vib.vibrate(effect) // NO RED LINE!
+            vib.vibrate(effect)
         } else {
             @Suppress("DEPRECATION")
-            vib.vibrate(durationMillis) // NO RED LINE!
+            vib.vibrate(durationMillis)
         }
     }
 
@@ -41,10 +36,10 @@ class VibrationHelper(private val context: Context) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val effect = VibrationEffect.createWaveform(pattern, repeat)
-            vib.vibrate(effect) // NO RED LINE!
+            vib.vibrate(effect)
         } else {
             @Suppress("DEPRECATION")
-            vib.vibrate(pattern, repeat) // NO RED LINE!
+            vib.vibrate(pattern, repeat)
         }
     }
 
