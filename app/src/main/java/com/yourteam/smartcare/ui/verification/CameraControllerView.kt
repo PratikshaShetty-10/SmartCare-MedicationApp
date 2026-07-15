@@ -1,4 +1,4 @@
-package com.yourteam.smartcare.logic
+package com.yourteam.smartcare.ui.verification
 
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView

@@ -1,10 +1,9 @@
-package com.yourteam.smartcare.viewmodels
+package com.yourteam.smartcare.ui.verification
 
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.util.Log
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -14,10 +13,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.yourteam.smartcare.api.GuardianNotifier
+import com.yourteam.smartcare.emergency.services.EscalationManager
 import com.yourteam.smartcare.repositories.VerificationRepository
-import com.yourteam.smartcare.ui.screens.VerificationUiState
-import com.yourteam.smartcare.utils.EscalationManager
-import com.yourteam.smartcare.utils.GuardianNotifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -27,11 +25,11 @@ import kotlin.coroutines.resume
 class VerificationViewModel(
     application: Application,
     private val medicationId: String,
+    private val repository: VerificationRepository,
     private val onComplete: (Boolean) -> Unit
 ) : AndroidViewModel(application) {
 
     private val context = getApplication<Application>()
-    private val repository = VerificationRepository()
     private val escalationManager = EscalationManager(context)
     private val guardianNotifier = GuardianNotifier(context)
 
@@ -43,7 +41,6 @@ class VerificationViewModel(
 
         viewModelScope.launch {
             _uiState.value = VerificationUiState.Loading
-
             try {
                 val imageBitmap = captureImage(controller)
                 if (imageBitmap == null) {
@@ -59,7 +56,7 @@ class VerificationViewModel(
                     onComplete(true)
                 } else {
                     escalationManager.stopAll()
-                    guardianNotifier.notifyGuardian("SAMPLE_GUARDIAN_ID", "⚠️ Medication Verification Failed!", "Failed: ${response.message}")
+                    guardianNotifier.notifyGuardian("SAMPLE_GUARDIAN_ID", "⚠️ Failed!", "Result: ${response.message}")
                     _uiState.value = VerificationUiState.Error("❌ ${response.message}")
                     onComplete(false)
                 }
@@ -80,6 +77,7 @@ class VerificationViewModel(
                         image.close()
                         if (continuation.isActive) continuation.resume(bitmap)
                     }
+
                     override fun onError(exception: ImageCaptureException) {
                         if (continuation.isActive) continuation.resume(null)
                     }
@@ -102,13 +100,16 @@ class VerificationViewModel(
         } catch (e: Exception) { null }
     }
 
+    // FIXED FACTORY
     class Factory(
         private val application: Application,
         private val medicationId: String,
+        private val repository: VerificationRepository,
         private val onComplete: (Boolean) -> Unit
     ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return VerificationViewModel(application, medicationId, onComplete) as T
+            return VerificationViewModel(application, medicationId, repository, onComplete) as T
         }
     }
 }
