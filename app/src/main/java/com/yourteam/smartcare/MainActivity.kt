@@ -1,12 +1,16 @@
 package com.yourteam.smartcare
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,11 +33,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onDestroy() {
-        voiceHelper.shutdown()
-        super.onDestroy()
-    }
 }
 
 @Composable
@@ -41,6 +40,25 @@ fun TestConsoleScreen() {
     val context = LocalContext.current
     val escalationManager = EscalationManager(context)
     val notificationHelper = NotificationHelper(context)
+
+    // Permission Launcher for Android 13+ (Notifications) and Location
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.values.all { it }
+        if (!granted) Toast.makeText(context, "Permissions Denied", Toast.LENGTH_SHORT).show()
+    }
+
+    LaunchedEffect(Unit) {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        permissionLauncher.launch(permissions.toTypedArray())
+    }
 
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Backend Feature Test Console", style = MaterialTheme.typography.headlineSmall)
@@ -56,8 +74,5 @@ fun TestConsoleScreen() {
         Button(onClick = { escalationManager.stopAll() }) {
             Text("Test: Stop All Services")
         }
-
-        Text("Note: Verification and Camera tests are handled by the UI module.",
-            style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -1,20 +1,22 @@
+// MedicationRepository.kt
 package com.yourteam.smartcare.repositories
 
-import android.util.Log
+import com.yourteam.smartcare.SmartCareApp
+import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class MedicationModel(val id: Int, val name: String, val stockCount: Int)
 
 class MedicationRepository {
-
-    /**
-     * Retrieves current medication stock based on AI scan results.
-     * This will eventually query your local database or cloud storage.
-     */
     suspend fun getRemainingStock(): Int {
         return try {
-            // TODO: Replace with database call (e.g., dao.getLatestStock())
-            Log.d("MedicationRepository", "Fetching AI-scanned stock count...")
-            14 // Placeholder return value for testing
+            // Query the 'medications' table
+            val response = SmartCareApp.supabase.from("medications")
+                .select { single() }
+                .decodeSingle<MedicationModel>()
+            response.stockCount
         } catch (e: Exception) {
-            Log.e("MedicationRepository", "Failed to fetch stock", e)
             0
         }
     }

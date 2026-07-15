@@ -1,8 +1,10 @@
 package com.yourteam.smartcare.viewmodels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.yourteam.smartcare.viewmodels.LocationViewModel
 import com.yourteam.smartcare.SmartCareApp
 import com.yourteam.smartcare.api.EmergencyPayload
 import com.yourteam.smartcare.api.NotificationClient
@@ -52,10 +54,17 @@ class SOSViewModel(
     }
 
     private suspend fun logEmergencyToSupabase(id: String, lat: Double, lng: Double) {
-        SmartCareApp.supabase.from("emergency_logs").insert(mapOf(
-            "elder_id" to id, "location_lat" to lat, "location_lng" to lng
-        ))
+        try {
+            SmartCareApp.supabase.from("emergency_logs").insert(mapOf(
+                "elder_id" to id,
+                "location_lat" to lat,
+                "location_lng" to lng
+            ))
+        } catch (e: Exception) {
+            Log.e("SOSViewModel", "Failed to log emergency to Supabase", e)
+        }
     }
+
     sealed class SOSUiState {
         object Idle : SOSUiState()
         object Loading : SOSUiState()
