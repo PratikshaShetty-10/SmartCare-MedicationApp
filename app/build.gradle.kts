@@ -27,15 +27,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Injecting keys into BuildConfig
-        buildConfigField("String", "LOCATIONIQ_API_KEY",
-            "\"${secretsProperties.getProperty("LOCATIONIQ_API_KEY") ?: ""}\"")
-
+        // Injecting keys into BuildConfig (Supabase only now)
         buildConfigField("String", "SUPABASE_URL",
             "\"${secretsProperties.getProperty("SUPABASE_URL") ?: ""}\"")
 
         buildConfigField("String", "SUPABASE_KEY",
             "\"${secretsProperties.getProperty("SUPABASE_KEY") ?: ""}\"")
+
         externalNativeBuild {
             cmake {
                 cppFlags += ""
@@ -86,11 +84,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // ─── SUPABASE (MODERNIZED) ───
-    // These are the correct coordinates that exist in Maven Central
+    // ─── SUPABASE ───
     implementation(platform("io.github.jan-tennert.supabase:bom:3.0.0"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:functions-kt")
+    implementation("io.github.jan-tennert.supabase:auth-kt")
 
     // ─── KTOR HTTP CLIENT ───
     implementation("io.ktor:ktor-client-core:2.3.12")
@@ -103,7 +101,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     // ─── FIREBASE ───
-    implementation(platform("com.google.firebase:firebase-bom:33.14.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
     implementation("com.google.firebase:firebase-messaging")
 
     // ─── WORK MANAGER ───
@@ -115,10 +113,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
 
-    // ─── GOOGLE PLAY SERVICES (LOCATION) ───
+    // ─── LOCATION & MAPS (OSMDROID) ───
     implementation("com.google.android.gms:play-services-location:21.3.0")
-
-    implementation("com.google.android.libraries.places:places:3.3.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.10")
 
     // ─── TESTING ───
     testImplementation(libs.junit)
