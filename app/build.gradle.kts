@@ -1,3 +1,6 @@
+// 1. ADD THIS IMPORT AT THE VERY TOP OF YOUR FILE (Above the plugins block)
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,9 +10,14 @@ plugins {
 
 android {
     namespace = "com.yourteam.smartcare"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
+    compileSdk = 37
+
+    // 2. We can now safely instantiate Properties without using the conflicting "java." prefix
+    val secretsProperties = Properties()
+    val secretPropertiesFile = rootProject.file("secret.properties")
+    if (secretPropertiesFile.exists()) {
+        secretPropertiesFile.inputStream().use { stream ->
+            secretsProperties.load(stream)
         }
     }
 
@@ -21,6 +29,22 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Enabling BuildConfig generation
+        buildFeatures {
+            buildConfig = true
+            compose = true
+        }
+
+        // Injecting keys into BuildConfig
+        buildConfigField("String", "LOCATIONIQ_API_KEY",
+            "\"${secretsProperties.getProperty("LOCATIONIQ_API_KEY") ?: ""}\"")
+
+        buildConfigField("String", "SUPABASE_URL",
+            "\"${secretsProperties.getProperty("SUPABASE_URL") ?: ""}\"")
+
+        buildConfigField("String", "SUPABASE_KEY",
+            "\"${secretsProperties.getProperty("SUPABASE_KEY") ?: ""}\"")
     }
 
     buildTypes {
@@ -40,7 +64,6 @@ android {
 }
 
 dependencies {
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
@@ -55,6 +78,7 @@ dependencies {
     implementation(platform("io.github.jan-tennert.supabase:bom:3.0.1"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.ktor:ktor-client-android:2.3.12")
+    implementation(libs.androidx.navigation.compose)
 
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
@@ -66,4 +90,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
 }
