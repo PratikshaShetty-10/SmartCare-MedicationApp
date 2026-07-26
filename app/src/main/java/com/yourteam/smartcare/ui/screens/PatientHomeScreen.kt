@@ -1,7 +1,10 @@
 package com.yourteam.smartcare.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Medication
@@ -15,6 +18,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,7 +29,7 @@ fun PatientHomeScreen(
     onTakeMedicineClick: () -> Unit,
     onSosClick: () -> Unit,
     onPharmacyClick: () -> Unit,
-    onScanLabelClick: () -> Unit // ADDED: New parameter for the camera action
+    onScanLabelClick: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -36,7 +43,7 @@ fun PatientHomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onScanLabelClick, // FIXED: Now uses the dedicated scan parameter
+                onClick = onScanLabelClick,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(16.dp),
@@ -60,8 +67,8 @@ fun PatientHomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -74,59 +81,148 @@ fun PatientHomeScreen(
                 text = "How can we help you manage your health today?",
                 fontSize = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // EMERGENCY SOS BUTTON (High Priority)
+            // 1. EMERGENCY SOS BUTTON
             Button(
                 onClick = onSosClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp),
+                    .height(72.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Warning, contentDescription = "SOS", modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("EMERGENCY SOS", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // MEDICATION LOG TRACKER
-            Button(
-                onClick = onTakeMedicineClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-                shape = RoundedCornerShape(12.dp)
+            // 2. QUICK ACTIONS ROW
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = onTakeMedicineClick,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
                     Icon(Icons.Default.Medication, contentDescription = "Meds")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Track Daily Medication", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Full Log", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onPharmacyClick,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.LocalPharmacy, contentDescription = "Pharmacy")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Pharmacies", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // PHARMACY LOCATOR
-            OutlinedButton(
-                onClick = onPharmacyClick, // Keeps working correctly for pharmacies
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocalPharmacy, contentDescription = "Pharmacy")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Find Nearby Pharmacies", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            // 3. TODAY'S SCHEDULE SECTION
+            Text(
+                text = "Today's Schedule",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+// --- PASTE HERE ---
+// 1. Create dynamic state for the medication status
+            var aspirinStatus by remember { mutableStateOf("Pending") }
+
+// 2. Pass the dynamic state and update logic into the items
+            PatientScheduleItem(
+                medName = "Aspirin",
+                dosage = "500 mg",
+                time = "08:00 AM",
+                status = aspirinStatus,
+                onMarkAsTaken = {
+                    aspirinStatus = "Taken" // <--- Updates state and turns the button into "✓ Taken"
+                }
+            )
+
+            PatientScheduleItem(
+                medName = "Multivitamin",
+                dosage = "1 Tablet",
+                time = "01:00 PM",
+                status = "Taken",
+                onMarkAsTaken = { /* Already taken */ }
+            )
+        }
+    }
+} // <--- PatientHomeScreen stops HERE
+
+// -------------------------------------------------------------
+// PatientScheduleItem is defined OUTSIDE as its own composable
+// -------------------------------------------------------------
+@Composable
+fun PatientScheduleItem(
+    medName: String,
+    dosage: String,
+    time: String,
+    status: String,
+    onMarkAsTaken: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = time,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "$medName ($dosage)",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp
+                )
+            }
+
+            if (status == "Taken") {
+                Text(
+                    text = "✓ Taken",
+                    color = Color(0xFF2E7D32),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .background(Color(0xFF2E7D32).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            } else {
+                Button(
+                    onClick = onMarkAsTaken,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(text = "Mark as Taken", fontSize = 13.sp)
                 }
             }
         }

@@ -25,7 +25,7 @@ import com.yourteam.smartcare.ui.MedicationViewModel
 fun GuardianDashboardScreen(
     navController: NavController,
     medicineName: String,
-    viewModel: MedicationViewModel = viewModel() // Connect the shared data layer pipeline
+    viewModel: MedicationViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -65,12 +65,10 @@ fun GuardianDashboardScreen(
                 is MedicationUiState.Success -> {
                     val medications = state.medications
 
-                    // Dynamically calculate compliance rate based on real records
                     val takenCount = medications.count { it.status == "Taken" }
                     val totalCount = medications.size
                     val complianceRate = if (totalCount > 0) takenCount.toFloat() / totalCount else 1.0f
 
-                    // Filter down active missed warnings from live states
                     val missedMedication = medications.firstOrNull { it.status == "Missed" }
 
                     LazyColumn(
@@ -79,7 +77,7 @@ fun GuardianDashboardScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // 1. CRITICAL ALERTS SECTION (Displays dynamically if a medicine status is marked Missed)
+                        // 1. CRITICAL ALERTS SECTION
                         if (missedMedication != null) {
                             item {
                                 Card(
@@ -92,7 +90,7 @@ fun GuardianDashboardScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Warning,
+                                            imageVector = Icons.Filled.Warning, // Changed to explicitly target Icons.Filled
                                             contentDescription = "Alert",
                                             tint = Color.Red,
                                             modifier = Modifier.size(32.dp)
@@ -125,7 +123,7 @@ fun GuardianDashboardScreen(
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     LinearProgressIndicator(
-                                        progress = complianceRate,
+                                        progress = { complianceRate },
                                         modifier = Modifier.fillMaxWidth().height(8.dp),
                                         color = MaterialTheme.colorScheme.primary,
                                         trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -197,7 +195,12 @@ fun ScheduleItem(time: String, medName: String, status: String, statusColor: Col
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(time, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    time,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(medName, fontWeight = FontWeight.Medium, fontSize = 16.sp)
             }
             Text(
@@ -211,28 +214,29 @@ fun ScheduleItem(time: String, medName: String, status: String, statusColor: Col
             )
         }
     }
+}
 
-    @Composable
-    fun StockItem(name: String, remaining: Int, total: Int, isLow: Boolean = false) {
-        val ratio = if (total > 0) remaining.toFloat() / total else 0.0f
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(name, fontWeight = FontWeight.Medium)
-                Text(
-                    text = "$remaining / $total left",
-                    color = if (isLow) Color.Red else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = if (isLow) FontWeight.Bold else FontWeight.Normal
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = ratio,
-                modifier = Modifier.fillMaxWidth().height(6.dp),
-                color = if (isLow) Color.Red else MaterialTheme.colorScheme.secondary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+@Composable
+fun StockItem(name: String, remaining: Int, total: Int, isLow: Boolean = false) {
+    val ratio = if (total > 0) remaining.toFloat() / total else 0.0f
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(name, fontWeight = FontWeight.Medium)
+            Text(
+                text = "$remaining / $total left",
+                color = if (isLow) Color.Red else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isLow) FontWeight.Bold else FontWeight.Normal
             )
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { ratio },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            color = if (isLow) Color.Red else MaterialTheme.colorScheme.secondary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     }
+}

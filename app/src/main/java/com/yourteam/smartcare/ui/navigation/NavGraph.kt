@@ -6,14 +6,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+
+// Single wildcard import for all screens
 import com.yourteam.smartcare.ui.screens.*
-import com.yourteam.smartcare.ui.screens.PatientHomeScreen
-import com.yourteam.smartcare.ui.screens.GuardianSetupScreen
-import com.yourteam.smartcare.ui.screens.GuardianDashboardScreen
-import com.yourteam.smartcare.ui.screens.MedicationTrackerScreen
-import com.yourteam.smartcare.ui.screens.EmergencySosScreen
-import com.yourteam.smartcare.ui.screens.PharmacyLocatorScreen
-import com.yourteam.smartcare.ui.screens.CameraScannerScreen // Added explicit import
 
 @Composable
 fun NavGraph() {
@@ -21,14 +16,15 @@ fun NavGraph() {
 
     NavHost(
         navController = navController,
-        startDestination = Screen.GuardianSetup.route
+        startDestination = Screen.PatientHome.route
     ) {
         composable(Screen.GuardianSetup.route) {
             GuardianSetupScreen(navController = navController)
         }
 
+        // FIXED: Appended /{medicineName} to match the argument definition
         composable(
-            route = Screen.GuardianDashboard.route,
+            route = "${Screen.GuardianDashboard.route}/{medicineName}",
             arguments = listOf(navArgument("medicineName") { type = NavType.StringType })
         ) { backStackEntry ->
             val medicineName = backStackEntry.arguments?.getString("medicineName") ?: "No Medicine Set"
@@ -64,7 +60,6 @@ fun NavGraph() {
             PharmacyLocatorScreen(navController = navController)
         }
 
-        // FIXED: Added the missing destination route for the Camera Scanner screen
         composable(Screen.CameraScanner.route) {
             CameraScannerScreen(navController = navController)
         }
