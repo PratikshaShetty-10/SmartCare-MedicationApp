@@ -1,28 +1,28 @@
-import java.io.FileInputStream
 import java.util.Properties
 
-// Read keys from secret.properties
+// Read keys safely from secret.properties
 val secretProperties = Properties()
 val secretPropertiesFile = rootProject.file("secret.properties")
 if (secretPropertiesFile.exists()) {
-    secretProperties.load(FileInputStream(secretPropertiesFile))
+    secretPropertiesFile.inputStream().use { stream ->
+        secretProperties.load(stream)
+    }
 }
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.0"
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "com.yourteam.smartcare"
-    compileSdk = 37 // CHANGED FROM 36 TO 37
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.yourteam.smartcare"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -43,47 +43,68 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
+
     buildFeatures {
         compose = true
-        buildConfig = true // Enables BuildConfig generation
+        buildConfig = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
 dependencies {
-
-    implementation(platform(libs.androidx.compose.bom))
+    // AndroidX Core & Lifecycle
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.compose.material3)
+
+    // Jetpack Compose (Managed via Compose BOM)
+    implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.compose.material3)
 
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // Material Icons
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
 
-    // Jetpack Navigation for Compose
-    implementation("androidx.navigation:navigation-compose:2.8.0")
+    // Navigation for Compose
+    implementation(libs.androidx.navigation.compose)
+
+    // KotlinX Serialization JSON
+    implementation(libs.kotlinx.serialization.json)
 
     // Supabase Dependencies
-    implementation(platform("io.github.jan-tennert.supabase:bom:3.0.1"))
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.1.1"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
-    implementation("io.ktor:ktor-client-android:2.3.12")
+    implementation("io.github.jan-tennert.supabase:auth-kt")
 
-    // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    implementation("androidx.compose.material:material-icons-core")
-    implementation("androidx.compose.material:material-icons-extended")
+    // Ktor Dependencies
+    val ktorVersion = "3.1.1"
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -91,28 +112,11 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    val ktorVersion = "2.3.12" // Or 3.0.0+ if using Supabase v3
-
-    implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-android:$ktorVersion")
-    implementation("io.ktor:ktor-client-plugins:$ktorVersion") // <--- Fixes HttpTimeout missing class
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-    implementation("io.ktor:ktor-client-plugins:3.1.1")
-    implementation(platform("io.github.jan-tennert.supabase:bom:3.1.1")) // Use your current version
-    implementation("io.github.jan-tennert.supabase:postgrest-kt")
-    implementation("io.github.jan-tennert.supabase:auth-kt") // or gotrue-kt if on v2
-
-    // 2. REQUIRED: Ktor Engine & Core matching Supabase Ktor version
-    // If using Supabase 3.x:
-    implementation("io.ktor:ktor-client-okhttp:3.1.1")
-    implementation("io.ktor:ktor-client-core:3.1.1")
 }
+
 configurations.all {
     resolutionStrategy {
-        // Enforce Ktor 3.1.1 across all dependencies
         force("io.ktor:ktor-client-core:3.1.1")
         force("io.ktor:ktor-client-okhttp:3.1.1")
-        force("io.ktor:ktor-client-plugins:3.1.1")
     }
 }

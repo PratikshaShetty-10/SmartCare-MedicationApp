@@ -2,8 +2,8 @@ package com.yourteam.smartcare.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yourteam.smartcare.data.Medication
-import com.yourteam.smartcare.data.MedicationRepository
+import com.yourteam.smartcare.data.model.Medication
+import com.yourteam.smartcare.data.repository.MedicationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,13 +37,13 @@ class MedicationViewModel : ViewModel() {
         }
     }
 
-    fun markAsTaken(id: Int) {
+    fun markAsTaken(medicationId: String) {
         viewModelScope.launch {
             try {
-                repository.updateMedicationStatus(id, "Taken")
+                repository.recordAdherence(medicationId, "taken")
                 fetchTodaySchedule()
             } catch (e: Exception) {
-                _uiState.value = MedicationUiState.Error("Failed to update medication status")
+                _uiState.value = MedicationUiState.Error("Failed to record adherence log")
             }
         }
     }

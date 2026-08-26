@@ -6,22 +6,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import com.yourteam.smartcare.data.SupabaseClient
+import com.yourteam.smartcare.data.model.Profile
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,8 +30,26 @@ fun PatientHomeScreen(
     onTakeMedicineClick: () -> Unit,
     onSosClick: () -> Unit,
     onPharmacyClick: () -> Unit,
-    onScanLabelClick: () -> Unit
+    onScanLabelClick: () -> Unit,
+    onLogoutClick: () -> Unit = {}
 ) {
+    var profile by remember { mutableStateOf<Profile?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var aspirinStatus by remember { mutableStateOf("Pending") }
+
+    // Fetch the logged-in elder's profile to display their pairing code
+    LaunchedEffect(Unit) {
+        val user = SupabaseClient.client.auth.currentUserOrNull()
+        if (user != null) {
+            try {
+                profile = SupabaseClient.client.from("profiles")
+                    .select { filter { eq("id", user.id) } }
+                    .decodeSingleOrNull<Profile>()
+            } catch (_: Exception) {}
+        }
+        isLoading = false
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -38,7 +57,16 @@ fun PatientHomeScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                ),
+                actions = {
+                    IconButton(onClick = onLogoutClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Log Out",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             )
         },
         floatingActionButton = {
@@ -71,32 +99,54 @@ fun PatientHomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Welcome Back",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "How can we help you manage your health today?",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            // Pairing Code Card for Guardians
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Welcome, ${profile?.name ?: "Elder"}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Guardian Pairing Code:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = profile?.pairCode ?: if (isLoading) "Loading..." else "Not Available",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Share this code with your guardian to link accounts.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 1. EMERGENCY SOS BUTTON
             Button(
                 onClick = onSosClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(72.dp),
+                    .height(68.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Warning, contentDescription = "SOS", modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("EMERGENCY SOS", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("EMERGENCY SOS", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 
@@ -109,7 +159,7 @@ fun PatientHomeScreen(
             ) {
                 Button(
                     onClick = onTakeMedicineClick,
-                    modifier = Modifier.weight(1f).height(56.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.Medication, contentDescription = "Meds")
@@ -119,7 +169,7 @@ fun PatientHomeScreen(
 
                 OutlinedButton(
                     onClick = onPharmacyClick,
-                    modifier = Modifier.weight(1f).height(56.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LocalPharmacy, contentDescription = "Pharmacy")
@@ -128,7 +178,7 @@ fun PatientHomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // 3. TODAY'S SCHEDULE SECTION
             Text(
@@ -141,18 +191,13 @@ fun PatientHomeScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-// --- PASTE HERE ---
-// 1. Create dynamic state for the medication status
-            var aspirinStatus by remember { mutableStateOf("Pending") }
-
-// 2. Pass the dynamic state and update logic into the items
             PatientScheduleItem(
                 medName = "Aspirin",
                 dosage = "500 mg",
                 time = "08:00 AM",
                 status = aspirinStatus,
                 onMarkAsTaken = {
-                    aspirinStatus = "Taken" // <--- Updates state and turns the button into "✓ Taken"
+                    aspirinStatus = "Taken"
                 }
             )
 
@@ -165,11 +210,8 @@ fun PatientHomeScreen(
             )
         }
     }
-} // <--- PatientHomeScreen stops HERE
+}
 
-// -------------------------------------------------------------
-// PatientScheduleItem is defined OUTSIDE as its own composable
-// -------------------------------------------------------------
 @Composable
 fun PatientScheduleItem(
     medName: String,
