@@ -6,14 +6,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -29,25 +27,18 @@ import kotlinx.coroutines.launch
 @Composable
 fun RegisterScreen(navController: NavController) {
     var fullName by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    var guardianPhone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("elder") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-
     val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Account", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+                title = { Text("Create Guardian Account", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -61,56 +52,28 @@ fun RegisterScreen(navController: NavController) {
                 .padding(innerPadding)
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Join SmartCare",
+                text = "Join SmartCare as Guardian",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { selectedRole = "elder" },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (selectedRole == "elder") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Text("👴 Elder", fontWeight = if (selectedRole == "elder") FontWeight.Bold else FontWeight.Normal)
-                }
-
-                OutlinedButton(
-                    onClick = { selectedRole = "guardian" },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (selectedRole == "guardian") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Text("🛡️ Guardian", fontWeight = if (selectedRole == "guardian") FontWeight.Bold else FontWeight.Normal)
-                }
-            }
-
             OutlinedTextField(
                 value = fullName,
                 onValueChange = { fullName = it },
-                label = { Text("Full Name") },
+                label = { Text("Guardian Full Name") },
                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
             OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = { Text("Phone Number") },
+                value = guardianPhone,
+                onValueChange = { guardianPhone = it },
+                label = { Text("Guardian Phone Number") },
                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
@@ -133,7 +96,6 @@ fun RegisterScreen(navController: NavController) {
                 label = { Text("Password") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -144,86 +106,58 @@ fun RegisterScreen(navController: NavController) {
                 label = { Text("Confirm Password") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
             if (errorMessage != null) {
-                Text(
-                    text = errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp
-                )
+                Text(text = errorMessage ?: "", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Button(
                 onClick = {
+                    // Validation no longer looks for elderPhone
+                    if (email.isBlank() || password.isBlank() || fullName.isBlank() || guardianPhone.isBlank()) {
+                        errorMessage = "Please fill in all required fields."
+                        return@Button
+                    }
                     if (password != confirmPassword) {
-                        errorMessage = "Passwords do not match"
+                        errorMessage = "Passwords do not match."
                         return@Button
                     }
-                    if (password.length < 6) {
-                        errorMessage = "Password must be at least 6 characters"
-                        return@Button
-                    }
+
                     errorMessage = null
                     isLoading = true
 
                     scope.launch {
-                        try {
-                            val result = AuthRepository.registerUser(
-                                emailInput = email.trim(),
-                                passwordInput = password.trim(),
-                                nameInput = fullName.trim(),
-                                phoneInput = phone.trim(),
-                                roleInput = selectedRole
-                            )
+                        val result = AuthRepository.signUpGuardian(
+                            email = email.trim(),
+                            password = password.trim(),
+                            name = fullName.trim(),
+                            phone = guardianPhone.trim()
+                        )
+
+                        result.onSuccess { _: Unit ->
                             isLoading = false
-                            result.onSuccess { profile ->
-                                if (profile.role.lowercase() == "elder") {
-                                    navController.navigate(Screen.PatientHome.route) {
-                                        popUpTo(Screen.Login.route) { inclusive = true }
-                                    }
-                                } else {
-                                    navController.navigate(Screen.GuardianSetup.route) {
-                                        popUpTo(Screen.Login.route) { inclusive = true }
-                                    }
-                                }
-                            }.onFailure { error ->
-                                errorMessage = error.localizedMessage ?: "Registration failed."
+                            navController.navigate(Screen.GuardianSetup.route) {
+                                popUpTo(Screen.Register.route) { inclusive = true }
                             }
-                        } catch (t: Throwable) {
+                        }.onFailure { error: Throwable ->
                             isLoading = false
-                            errorMessage = "Connection Error: ${t.localizedMessage ?: t.javaClass.simpleName}"
+                            errorMessage = error.localizedMessage ?: "Registration failed."
                         }
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                enabled = !isLoading && fullName.isNotBlank() && phone.isNotBlank() && email.isNotBlank() && password.isNotBlank()
+                enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                 } else {
-                    Text("Sign Up as ${selectedRole.replaceFirstChar { it.uppercase() }}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Already have an account? ")
-                TextButton(onClick = { navController.popBackStack() }) {
-                    Text("Log In", fontWeight = FontWeight.Bold)
+                    Text("Sign Up as Guardian", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

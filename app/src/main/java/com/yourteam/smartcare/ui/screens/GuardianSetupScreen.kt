@@ -21,13 +21,14 @@ import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.data.model.Medication
 import com.yourteam.smartcare.data.repository.AuthRepository
 import com.yourteam.smartcare.ui.navigation.Screen
+import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GuardianSetupScreen(navController: NavController) {
-    var elderPairCode by remember { mutableStateOf("") }
+    var elderPhone by remember { mutableStateOf("") }
     var primaryMedication by remember { mutableStateOf("") }
     var dosage by remember { mutableStateOf("") }
     var scheduledTime by remember { mutableStateOf("08:00:00") }
@@ -57,23 +58,23 @@ fun GuardianSetupScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Link Elder & Configure Care",
+                text = "Register & Link Elder",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Text(
-                text = "Enter the 6-character Pairing Code generated on the Elder's device (or their phone number) to connect accounts.",
+                text = "Enter the Elder's phone number to create their account and link them to your dashboard.",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             OutlinedTextField(
-                value = elderPairCode,
-                onValueChange = { elderPairCode = it.uppercase() },
-                label = { Text("Elder's Pairing Code or Phone") },
-                placeholder = { Text("e.g. AB12CD") },
+                value = elderPhone,
+                onValueChange = { elderPhone = it },
+                label = { Text("Elder's Phone Number") },
+                placeholder = { Text("e.g. 9876543210") },
                 leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                 modifier = Modifier.fillMaxWidth(),
@@ -125,17 +126,22 @@ fun GuardianSetupScreen(navController: NavController) {
 
             Button(
                 onClick = {
-                    if (elderPairCode.isBlank() || primaryMedication.isBlank() || dosage.isBlank()) {
-                        errorMessage = "Please fill in the Pairing Code, Medication, and Dosage."
+                    val cleanPhone = elderPhone.trim()
+                    if (cleanPhone.isBlank() || primaryMedication.isBlank() || dosage.isBlank()) {
+                        errorMessage = "Please enter Elder's Phone Number, Medication, and Dosage."
                         return@Button
                     }
                     errorMessage = null
                     isLoading = true
 
                     scope.launch {
-                        val linkResult = AuthRepository.linkElder(elderPairCode.trim())
+                        // Register the Elder account in Supabase (Repository handles the email and 6-digit PIN internally)
+                        val linkResult = AuthRepository.registerAndLinkElder(
+                            name = "Elder",
+                            phone = cleanPhone
+                        )
 
-                        linkResult.onSuccess { linkedElder ->
+                        linkResult.onSuccess { linkedElder: UserInfo ->
                             try {
                                 val newMed = Medication(
                                     elderId = linkedElder.id,
@@ -152,11 +158,11 @@ fun GuardianSetupScreen(navController: NavController) {
                                 }
                             } catch (e: Exception) {
                                 isLoading = false
-                                errorMessage = "Linked successfully, but failed to save medication: ${e.message}"
+                                errorMessage = "Elder registered, but failed to save medication: ${e.message}"
                             }
-                        }.onFailure { error ->
+                        }.onFailure { error: Throwable ->
                             isLoading = false
-                            errorMessage = error.localizedMessage ?: "Failed to find or link Elder."
+                            errorMessage = error.localizedMessage ?: "Failed to register Elder account."
                         }
                     }
                 },
@@ -167,7 +173,7 @@ fun GuardianSetupScreen(navController: NavController) {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                 } else {
-                    Text("Link Elder & Start Tracking", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Register Elder & Start Tracking", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

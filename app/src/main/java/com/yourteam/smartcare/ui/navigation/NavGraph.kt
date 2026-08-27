@@ -1,19 +1,15 @@
 package com.yourteam.smartcare.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavBackStackEntry
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.ui.screens.*
 import io.github.jan.supabase.auth.auth
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,17 +37,19 @@ private fun NavGraphBuilder.setupSmartCareRoutes(navController: NavHostControlle
 
     // 2. ELDER DASHBOARD
     composable(Screen.PatientHome.route) {
+        val scope = rememberCoroutineScope()
+
         PatientHomeScreen(
             onTakeMedicineClick = { navController.navigate(Screen.MedicationTracker.route) },
             onSosClick = { navController.navigate(Screen.EmergencySos.route) },
             onPharmacyClick = { navController.navigate(Screen.PharmacyLocator.route) },
             onScanLabelClick = { navController.navigate(Screen.CameraScanner.route) },
             onLogoutClick = {
-                CoroutineScope(Dispatchers.IO).launch {
+                scope.launch {
                     SupabaseClient.client.auth.signOut()
-                }
-                navController.navigate(Screen.Login.route) {
-                    popUpTo(0) { inclusive = true }
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.PatientHome.route) { inclusive = true }
+                    }
                 }
             }
         )

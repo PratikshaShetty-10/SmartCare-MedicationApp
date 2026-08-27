@@ -20,9 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yourteam.smartcare.data.SupabaseClient
+import com.yourteam.smartcare.data.model.Medication as MedicationModel
 import com.yourteam.smartcare.data.model.Profile
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,17 +36,24 @@ fun PatientHomeScreen(
     onLogoutClick: () -> Unit = {}
 ) {
     var profile by remember { mutableStateOf<Profile?>(null) }
+    var medications by remember { mutableStateOf<List<MedicationModel>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var aspirinStatus by remember { mutableStateOf("Pending") }
+    val scope = rememberCoroutineScope()
 
-    // Fetch the logged-in elder's profile to display their pairing code
+    // Fetch logged-in user profile and their linked medications from Supabase
     LaunchedEffect(Unit) {
         val user = SupabaseClient.client.auth.currentUserOrNull()
         if (user != null) {
             try {
+                // Fetch profile
                 profile = SupabaseClient.client.from("profiles")
                     .select { filter { eq("id", user.id) } }
                     .decodeSingleOrNull<Profile>()
+
+                // Fetch real medications for this elder user
+                medications = SupabaseClient.client.from("medications")
+                    .select { filter { eq("elderId", user.id) } }
+                    .decodeList<MedicationModel>()
             } catch (_: Exception) {}
         }
         isLoading = false
@@ -99,7 +108,7 @@ fun PatientHomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Pairing Code Card for Guardians
+            // Linked Guardian Status Card (Replaces the obsolete Pairing Code section)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -108,26 +117,21 @@ fun PatientHomeScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "Welcome, ${profile?.name ?: "Elder"}",
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Guardian Pairing Code:",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = profile?.pairCode ?: if (isLoading) "Loading..." else "Not Available",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = "Status: Connected to Guardian",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Share this code with your guardian to link accounts.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "Your guardian can monitor and manage your medication schedule.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
                 }
             }
@@ -191,23 +195,34 @@ fun PatientHomeScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            PatientScheduleItem(
-                medName = "Aspirin",
-                dosage = "500 mg",
-                time = "08:00 AM",
-                status = aspirinStatus,
-                onMarkAsTaken = {
-                    aspirinStatus = "Taken"
-                }
-            )
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+            } else if (medications.isEmpty()) {
+                Text(
+                    text = "No medications scheduled for today.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            } else {
+                medications.forEach { med ->
+                    var isTaken by remember { mutableStateOf(false) }
 
-            PatientScheduleItem(
-                medName = "Multivitamin",
-                dosage = "1 Tablet",
-                time = "01:00 PM",
-                status = "Taken",
-                onMarkAsTaken = { /* Already taken */ }
-            )
+                    PatientScheduleItem(
+                        medName = med.medName,
+                        dosage = med.dosage,
+                        time = med.scheduledTime,
+                        status = if (isTaken) "Taken" else "Pending",
+                        onMarkAsTaken = {
+                            isTaken = true
+                            scope.launch {
+                                try {
+                                    // Optional: update pill count/status in Supabase
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
 }
