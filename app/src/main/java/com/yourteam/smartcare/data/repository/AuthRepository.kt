@@ -6,7 +6,6 @@ import com.yourteam.smartcare.data.model.Profile
 import com.yourteam.smartcare.data.model.Relationship
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.tasks.await
 
@@ -92,8 +91,8 @@ object AuthRepository {
                 name = name,
                 role = "guardian",
                 phone = phone,
-                pairCode = null, // Fixed Kotlin naming
-                fcmToken = null  // Added since we updated the model
+                pairCode = null,
+                fcmToken = null
             )
             SupabaseClient.client.from("profiles").insert(guardianProfile)
 
@@ -110,7 +109,7 @@ object AuthRepository {
     suspend fun registerAndLinkElder(
         name: String,
         phone: String
-    ): Result<UserInfo> {
+    ): Result<Pair<String, String>> {
         return try {
             val guardianId = SupabaseClient.client.auth.currentUserOrNull()?.id
                 ?: throw Exception("Guardian session missing. Please log in again.")
@@ -118,30 +117,38 @@ object AuthRepository {
             val dummyEmail = "$phone@smartcare.app"
             val generatedPairCode = (100000..999999).random().toString() // 6-digit PIN
 
-            val user = SupabaseClient.client.auth.signUpWith(Email) {
+            // 1. Sign up the Elder (returns null if email confirmation is disabled)
+            SupabaseClient.client.auth.signUpWith(Email) {
                 this.email = dummyEmail
-                this.password = generatedPairCode // PIN acts as the actual password
+                this.password = generatedPairCode
             }
-            val userInfo = user ?: throw Exception("Elder account creation failed")
 
+            // 2. Retrieve the newly created Elder's ID from the active session
+            val elderId = SupabaseClient.client.auth.currentUserOrNull()?.id
+                ?: throw Exception("Could not retrieve created Elder ID.")
+
+            // 3. Create Elder Profile
             val elderProfile = Profile(
-                id = userInfo.id,
+                id = elderId,
                 name = name,
                 role = "elder",
                 phone = phone,
-                pairCode = generatedPairCode, // Fixed Kotlin naming
+                pairCode = generatedPairCode,
                 fcmToken = null
             )
             SupabaseClient.client.from("profiles").insert(elderProfile)
 
+            // 4. Link Guardian and Elder
             val relationship = Relationship(
-                guardianId = guardianId, // Fixed Kotlin naming
-                elderId = userInfo.id    // Fixed Kotlin naming
+                guardianId = guardianId,
+                elderId = elderId
             )
             SupabaseClient.client.from("relationships").insert(relationship)
 
-            Result.success(userInfo)
+            // Return the Elder's ID and generated PIN
+            Result.success(Pair(elderId, generatedPairCode))
         } catch (e: Exception) {
+            android.util.Log.e("SupabaseError", "Elder registration failed: ${e.message}", e)
             Result.failure(e)
         }
     }

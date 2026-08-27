@@ -85,7 +85,12 @@ fun MedicationTrackerScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(state.medications) { med ->
+                            items(state.medications, key = { it.id ?: it.medName }) { med ->
+
+                                // NEW: Local states for instant UI updates!
+                                var isTakenLocal by remember(med.id) { mutableStateOf(false) }
+                                var currentStockLocal by remember(med.id) { mutableStateOf(med.currentStock) }
+
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -108,7 +113,8 @@ fun MedicationTrackerScreen(
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             Text(
-                                                text = "Stock: ${med.currentStock} left",
+                                                // NEW: Displays the locally updated stock
+                                                text = "Stock: $currentStockLocal left",
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.outline
                                             )
@@ -116,15 +122,21 @@ fun MedicationTrackerScreen(
 
                                         IconButton(
                                             onClick = {
-                                                if (med.id != null) {
+                                                // NEW: Only trigger if they haven't already clicked it
+                                                if (!isTakenLocal && med.id != null) {
+                                                    isTakenLocal = true
+                                                    currentStockLocal -= 1
+
+                                                    // Tell the ViewModel to update the database in the background
                                                     viewModel.markAsTaken(med.id)
                                                 }
                                             }
                                         ) {
+                                            // NEW: Show a green checkmark if clicked, or the normal circle if not
                                             Icon(
-                                                imageVector = Icons.Default.RadioButtonUnchecked,
+                                                imageVector = if (isTakenLocal) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                                 contentDescription = "Mark Taken",
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                tint = if (isTakenLocal) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(32.dp)
                                             )
                                         }

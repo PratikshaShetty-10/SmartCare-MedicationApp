@@ -21,7 +21,6 @@ import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.data.model.Medication
 import com.yourteam.smartcare.data.repository.AuthRepository
 import com.yourteam.smartcare.ui.navigation.Screen
-import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
 
@@ -37,6 +36,10 @@ fun GuardianSetupScreen(navController: NavController) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Variables to control the PIN pop-up
+    var showPinDialog by remember { mutableStateOf(false) }
+    var generatedPin by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -135,16 +138,15 @@ fun GuardianSetupScreen(navController: NavController) {
                     isLoading = true
 
                     scope.launch {
-                        // Register the Elder account in Supabase (Repository handles the email and 6-digit PIN internally)
                         val linkResult = AuthRepository.registerAndLinkElder(
                             name = "Elder",
                             phone = cleanPhone
                         )
 
-                        linkResult.onSuccess { linkedElder: UserInfo ->
+                        linkResult.onSuccess { (elderId, pin) ->
                             try {
                                 val newMed = Medication(
-                                    elderId = linkedElder.id,
+                                    elderId = elderId,
                                     medName = primaryMedication.trim(),
                                     dosage = dosage.trim(),
                                     scheduledTime = scheduledTime.trim(),
@@ -152,10 +154,11 @@ fun GuardianSetupScreen(navController: NavController) {
                                 )
                                 SupabaseClient.client.from("medications").insert(newMed)
 
+                                // Stop loading, display the dialog with the PIN
                                 isLoading = false
-                                navController.navigate(Screen.GuardianDashboard.route) {
-                                    popUpTo(Screen.GuardianSetup.route) { inclusive = true }
-                                }
+                                generatedPin = pin
+                                showPinDialog = true
+
                             } catch (e: Exception) {
                                 isLoading = false
                                 errorMessage = "Elder registered, but failed to save medication: ${e.message}"
@@ -176,6 +179,41 @@ fun GuardianSetupScreen(navController: NavController) {
                     Text("Register Elder & Start Tracking", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+
+        // The Pop-Up Dialog to show the PIN
+        if (showPinDialog) {
+            AlertDialog(
+                onDismissRequest = { /* Force them to click the confirmation button */ },
+                title = {
+                    Text("Elder Registered!", fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column {
+                        Text("Account created successfully. Please share this secure PIN with the Elder so they can log into their app:")
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = generatedPin,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showPinDialog = false
+                            navController.navigate(Screen.GuardianDashboard.route) {
+                                popUpTo(Screen.GuardianSetup.route) { inclusive = true }
+                            }
+                        }
+                    ) {
+                        Text("I've saved it!")
+                    }
+                }
+            )
         }
     }
 }
