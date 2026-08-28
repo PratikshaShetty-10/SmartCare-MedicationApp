@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -12,8 +13,15 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- Added for exact alarm demo execution -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
@@ -35,6 +43,19 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".notifications.service.SosPopupActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <activity
+            android:name=".emergency.ui.EmergencyPopupActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.SmartCare" />
+
         <service
             android:name=".emergency.services.GpsTrackingService"
             android:foregroundServiceType="location"
@@ -54,6 +75,12 @@
             android:enabled="true"
             android:exported="false" />
 
+        <service
+            android:name=".notifications.services.SosService"
+            android:foregroundServiceType="mediaPlayback|location"
+            android:exported="false"
+            tools:targetApi="upside_down_cake" />
+
         <receiver
             android:name=".notifications.receivers.BootReceiver"
             android:exported="true"
@@ -62,6 +89,18 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- 👇 ADDED: Escalation Receiver for Alarm Trigger -->
+        <receiver
+            android:name=".emergency.services.EscalationReceiver"
+            android:exported="false" />
+
+        <!-- 👇 ADDED: Escalation Foreground Service for Audio/TTS Playback -->
+        <service
+            android:name=".emergency.services.EscalationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            tools:targetApi="upside_down_cake" />
 
     </application>
 </manifest>

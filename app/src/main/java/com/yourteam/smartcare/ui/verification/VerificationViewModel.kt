@@ -13,14 +13,23 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.yourteam.smartcare.SmartCareApp
 import com.yourteam.smartcare.api.GuardianNotifier
 import com.yourteam.smartcare.emergency.services.EscalationManager
 import com.yourteam.smartcare.repositories.VerificationRepository
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.Serializable
 import kotlin.coroutines.resume
+
+@Serializable
+data class PatientGuardianRelation(
+    val guardian_id: String
+)
 
 class VerificationViewModel(
     application: Application,
@@ -56,7 +65,11 @@ class VerificationViewModel(
                     onComplete(true)
                 } else {
                     escalationManager.stopAll()
-                    guardianNotifier.notifyGuardian("SAMPLE_GUARDIAN_ID", "⚠️ Failed!", "Result: ${response.message}")
+
+                    // Dynamically fetch the real guardian assigned to the active user session
+                    val guardianId = fetchAssignedGuardianId() ?: "default_guardian_id"
+
+                    guardianNotifier.notifyGuardian(guardianId, "⚠️ Failed!", "Result: ${response.message}")
                     _uiState.value = VerificationUiState.Error("❌ ${response.message}")
                     onComplete(false)
                 }
@@ -64,6 +77,22 @@ class VerificationViewModel(
                 _uiState.value = VerificationUiState.Error("Error: ${e.localizedMessage}")
                 onComplete(false)
             }
+        }
+    }
+
+    private suspend fun fetchAssignedGuardianId(): String? {
+        return try {
+            val currentUser = SmartCareApp.supabase.auth.currentUserOrNull() ?: return null
+            val relations = SmartCareApp.supabase
+                .from("patient_guardians")
+                .select {
+                    filter { eq("patient_id", currentUser.id) }
+                }
+                .decodeList<PatientGuardianRelation>()
+
+            relations.firstOrNull()?.guardian_id
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -100,7 +129,6 @@ class VerificationViewModel(
         } catch (e: Exception) { null }
     }
 
-    // FIXED FACTORY
     class Factory(
         private val application: Application,
         private val medicationId: String,
