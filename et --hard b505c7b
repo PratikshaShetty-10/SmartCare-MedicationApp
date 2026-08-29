@@ -1,0 +1,12 @@
+[33m5f9e3bc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/android-ui[m[33m, [m[1;31morigin/feature/android-ui[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33mb505c7b[m HEAD@{1}: commit: Added UI updates for medication tracking and editing
+[33m5f9e3bc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/android-ui[m[33m, [m[1;31morigin/feature/android-ui[m[33m)[m HEAD@{2}: pull origin feature/android-ui: Fast-forward
+[33m0536ad4[m[33m ([m[1;32mfeature/vision-system[m[33m)[m HEAD@{3}: checkout: moving from feature/android-ui to feature/android-ui
+[33m0536ad4[m[33m ([m[1;32mfeature/vision-system[m[33m)[m HEAD@{4}: checkout: moving from feature/vision-system to feature/android-ui
+[33m0536ad4[m[33m ([m[1;32mfeature/vision-system[m[33m)[m HEAD@{5}: checkout: moving from feature/android-ui to feature/vision-system
+[33m0536ad4[m[33m ([m[1;32mfeature/vision-system[m[33m)[m HEAD@{6}: checkout: moving from feature/android-ui to feature/android-ui
+[33m0536ad4[m[33m ([m[1;32mfeature/vision-system[m[33m)[m HEAD@{7}: commit: feat: complete UI and Supabase auth flow setup
+[33m790f8e4[m HEAD@{8}: commit: feat: complete UI and Supabase auth flow setup
+[33m485eeb0[m HEAD@{9}: checkout: moving from main to feature/android-ui
+[33m1259c6a[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{10}: commit: Remove all old main branch content
+[33md3fd5ca[m HEAD@{11}: clone: from https://github.com/PratikshaShetty-10/SmartCare-MedicationApp.git
