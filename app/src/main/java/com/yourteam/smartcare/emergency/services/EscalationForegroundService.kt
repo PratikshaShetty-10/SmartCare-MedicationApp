@@ -1,22 +1,26 @@
 package com.yourteam.smartcare.emergency.services
 
+import android.Manifest
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.IBinder
 import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
-import com.yourteam.smartcare.SmartCareApp
 import com.yourteam.smartcare.api.GuardianNotifier
 import com.yourteam.smartcare.emergency.ui.EmergencyPopupActivity
 import com.yourteam.smartcare.utils.*
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class GuardianRecord(
+    val id: String,
     val guardian_phone: String?,
     val fcm_token: String?
 )
@@ -45,11 +49,11 @@ class EscalationForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val medName = intent?.getStringExtra("MED_NAME") ?: "Medication"
-        val guardianId = intent?.getStringExtra("GUARDIAN_ID") ?: "DEFAULT"
+        val guardianId = intent?.getStringExtra("GUARDIAN_ID") ?: ""
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmartCare::EscalationWakeLock").apply {
-            acquire(15 * 60 * 1000L) // Holds for up to 15 minutes to fully cover the 10-min countdown window
+            acquire(15 * 60 * 1000L) // Holds for up to 15 minutes
         }
 
         val notificationHelper = NotificationHelper(this)
@@ -61,6 +65,27 @@ class EscalationForegroundService : Service() {
         }
 
         return START_NOT_STICKY
+    }
+
+    private suspend fun fetchGuardianFromSupabase(guardianId: String): GuardianRecord? {
+        if (guardianId.isBlank()) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                // Replace SmartCareApp.supabase with your actual project's Supabase client reference if named differently
+                val result = com.yourteam.smartcare.SmartCareApp.supabase
+                    .from("guardians")
+                    .select(Columns.list("id", "guardian_phone", "fcm_token")) {
+                        filter {
+                            eq("id", guardianId)
+                        }
+                    }
+                    .decodeSingleOrNull<GuardianRecord>()
+                result
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
     }
 
     private suspend fun runEscalationSequence(medName: String, guardianId: String) {
@@ -77,27 +102,27 @@ class EscalationForegroundService : Service() {
         notificationHelper.showReminder("⏰ Medication Reminder", "Time to take your $medName")
         vibrationHelper.vibrate(600)
 
-        // Wait 1 minute
-        delay(60_000)
+        // Wait 5 minutes
+        delay(300_000)
 
         // ==========================================================
-        // LEVEL 2: AFTER 1 MINUTE - REMINDER + VOICE MESSAGE
+        // LEVEL 2: AFTER 5 MINUTES - REMINDER + VOICE MESSAGE
         // ==========================================================
         notificationHelper.showReminder("⏰ Reminder", "Please take your $medName.")
         vibrationHelper.vibratePattern(longArrayOf(0, 500, 200, 500))
         voiceHelper.speak("Please take your $medName.")
 
-        // Wait another 1 minute (Total 2 minutes)
-        delay(60_000)
+        // Wait another 5 minutes (Total 10 minutes)
+        delay(300_000)
 
         // ==========================================================
-        // LEVEL 3: AFTER 2 MINUTES - INDEPENDENT ALARM + SUPABASE GUARDIAN + LIVE GPS
+        // LEVEL 3: AFTER 10 MINUTES - INDEPENDENT ALARM + SUPABASE GUARDIAN + LIVE GPS
         // ==========================================================
         isEscalationActive = true
         notificationHelper.showEmergencyAlarm("🚨 EMERGENCY", "$medName is missed!")
         vibrationHelper.vibratePattern(longArrayOf(0, 1000, 500, 1000, 500, 1000), 0)
 
-        // 1. Play Standalone Escalation Ringtone (Completely separate from SOS)
+        // 1. Play Standalone Escalation Ringtone
         try {
             if (mediaPlayerInstance == null) {
                 mediaPlayerInstance = MediaPlayer.create(applicationContext, android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI).apply {
@@ -117,27 +142,47 @@ class EscalationForegroundService : Service() {
         }
         applicationContext.startActivity(popupIntent)
 
-        // 3. Fetch Live GPS coordinates & Supabase Guardian Details, then notify
+        // 3. Fetch Guardian details from Supabase & Live GPS coordinates, then notify
         withContext(Dispatchers.IO) {
             try {
-                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    val lat = location?.latitude ?: 0.0
-                    val lng = location?.longitude ?: 0.0
-                    val mapsLink = "https://maps.google.com/?q=$lat,$lng"
+                val guardianRecord = fetchGuardianFromSupabase(guardianId)
+                val targetPhone = guardianRecord?.guardian_phone ?: guardianId
 
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            // Notify Guardian via Supabase / Notifier
-                            guardianNotifier.notifyGuardian(
-                                guardianId,
-                                "🚨 EMERGENCY!",
-                                "Patient has missed their scheduled dose of $medName! Live Location: $mapsLink"
-                            )
-                        } catch (err: Exception) {
-                            err.printStackTrace()
+                val hasFineLocation = ContextCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                val hasCoarseLocation = ContextCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (hasFineLocation || hasCoarseLocation) {
+                    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                        val lat = location?.latitude ?: 0.0
+                        val lng = location?.longitude ?: 0.0
+                        val mapsLink = "https://maps.google.com/?q=$lat,$lng"
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                guardianNotifier.notifyGuardian(
+                                    targetPhone,
+                                    "🚨 EMERGENCY!",
+                                    "Patient has missed their scheduled dose of $medName! Live Location: $mapsLink"
+                                )
+                            } catch (err: Exception) {
+                                err.printStackTrace()
+                            }
                         }
                     }
+                } else {
+                    guardianNotifier.notifyGuardian(
+                        targetPhone,
+                        "🚨 EMERGENCY!",
+                        "Patient has missed their scheduled dose of $medName! (Location permission unavailable)"
+                    )
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -147,15 +192,16 @@ class EscalationForegroundService : Service() {
         // ==========================================================
         // 10-MINUTE UNACKNOWLEDGED ESCALATION WINDOW
         // ==========================================================
-        // If the patient fails to stop the alarm or take the medicine within 10 minutes (600,000 ms),
-        // send a final missed notification to the guardian.
         delay(600_000)
 
         if (isEscalationActive) {
             withContext(Dispatchers.IO) {
                 try {
+                    val guardianRecord = fetchGuardianFromSupabase(guardianId)
+                    val targetPhone = guardianRecord?.guardian_phone ?: guardianId
+
                     guardianNotifier.notifyGuardian(
-                        guardianId,
+                        targetPhone,
                         "⚠️ CRITICAL UNATTENDED ALERT!",
                         "Patient has STILL NOT taken $medName after 10 minutes of continuous emergency sounding!"
                     )
