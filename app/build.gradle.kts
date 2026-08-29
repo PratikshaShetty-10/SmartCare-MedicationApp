@@ -112,9 +112,14 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    kotlin
+
+    // Firebase
     implementation("com.google.firebase:firebase-messaging-ktx:23.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // --- TEAMMATE'S EMERGENCY & NOTIFICATION DEPENDENCIES ---
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
 
 configurations.all {
