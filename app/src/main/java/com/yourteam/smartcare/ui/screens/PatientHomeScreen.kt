@@ -1,16 +1,15 @@
 package com.yourteam.smartcare.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.data.model.Medication as MedicationModel
 import com.yourteam.smartcare.data.model.Profile
+import com.yourteam.smartcare.ui.components.EmergencySosButton // <-- Imports your new component
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
@@ -30,27 +30,24 @@ import kotlinx.coroutines.launch
 @Composable
 fun PatientHomeScreen(
     onTakeMedicineClick: () -> Unit,
-    onSosClick: () -> Unit,
     onPharmacyClick: () -> Unit,
     onScanLabelClick: () -> Unit,
     onLogoutClick: () -> Unit = {}
+    // REMOVED onSosClick parameter from here
 ) {
     var profile by remember { mutableStateOf<Profile?>(null) }
     var medications by remember { mutableStateOf<List<MedicationModel>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    // Fetch logged-in user profile and their linked medications from Supabase
     LaunchedEffect(Unit) {
         val user = SupabaseClient.client.auth.currentUserOrNull()
         if (user != null) {
             try {
-                // Fetch profile
                 profile = SupabaseClient.client.from("profiles")
                     .select { filter { eq("id", user.id) } }
                     .decodeSingleOrNull<Profile>()
 
-                // Fetch real medications for this elder user
                 medications = SupabaseClient.client.from("medications")
                     .select { filter { eq("elderId", user.id) } }
                     .decodeList<MedicationModel>()
@@ -62,145 +59,95 @@ fun PatientHomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SmartCare Home", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
+                title = { Text("SmartCare", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onLogoutClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "Log Out",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Log Out")
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onScanLabelClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.padding(bottom = 16.dp, end = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoCamera,
-                        contentDescription = "Scan Label Icon"
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scan Label", fontWeight = FontWeight.Bold)
-                }
-            }
         }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(20.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Linked Guardian Status Card (Replaces the obsolete Pairing Code section)
-            Card(
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. Welcome Header
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                horizontalAlignment = Alignment.Start
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Welcome, ${profile?.name ?: "Elder"}",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Status: Connected to Guardian",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Your guardian can monitor and manage your medication schedule.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 1. EMERGENCY SOS BUTTON
-            Button(
-                onClick = onSosClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(68.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, contentDescription = "SOS", modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("EMERGENCY SOS", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 2. QUICK ACTIONS ROW
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onTakeMedicineClick,
-                    modifier = Modifier.weight(1f).height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Medication, contentDescription = "Meds")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Full Log", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-
-                OutlinedButton(
-                    onClick = onPharmacyClick,
-                    modifier = Modifier.weight(1f).height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.LocalPharmacy, contentDescription = "Pharmacy")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Pharmacies", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
+                Text(
+                    text = "Hello, ${profile?.name ?: "Elder"}",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Guardian Connected • Monitored",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 3. TODAY'S SCHEDULE SECTION
+            // 2. The NEW Self-Contained SOS Button Component
+            EmergencySosButton()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 3. Quick Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                QuickActionButton(
+                    text = "Scan Label",
+                    icon = Icons.Default.PhotoCamera,
+                    onClick = onScanLabelClick,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionButton(
+                    text = "Pharmacies",
+                    icon = Icons.Default.LocalPharmacy,
+                    onClick = onPharmacyClick,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionButton(
+                    text = "Med Log",
+                    icon = Icons.Default.Medication,
+                    onClick = onTakeMedicineClick,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 4. Today's Schedule
             Text(
                 text = "Today's Schedule",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             } else if (medications.isEmpty()) {
                 Text(
-                    text = "No medications scheduled for today.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "You are all caught up for today!",
+                    color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
             } else {
@@ -211,35 +158,63 @@ fun PatientHomeScreen(
                         medName = med.medName,
                         dosage = med.dosage,
                         time = med.scheduledTime,
-                        status = if (isTaken) "Taken" else "Pending",
+                        isTaken = isTaken,
                         onMarkAsTaken = {
                             isTaken = true
                             scope.launch {
-                                try {
-                                    // Optional: update pill count/status in Supabase
-                                } catch (_: Exception) {}
+                                // Update Supabase logic here
                             }
                         }
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
+// Custom button for the 3-grid layout
+@Composable
+fun QuickActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier.height(80.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = text, tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+// Lightened Schedule Item
 @Composable
 fun PatientScheduleItem(
     medName: String,
     dosage: String,
     time: String,
-    status: String,
+    isTaken: Boolean,
     onMarkAsTaken: () -> Unit
 ) {
-    Card(
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -253,33 +228,35 @@ fun PatientScheduleItem(
                     text = time,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.primary
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "$medName ($dosage)",
                     fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            if (status == "Taken") {
-                Text(
-                    text = "✓ Taken",
-                    color = Color(0xFF2E7D32),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    modifier = Modifier
-                        .background(Color(0xFF2E7D32).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
+            if (isTaken) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Taken",
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Taken", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
             } else {
-                Button(
+                OutlinedButton(
                     onClick = onMarkAsTaken,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                     shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(text = "Mark as Taken", fontSize = 13.sp)
+                    Text("Take", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -4,7 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.yourteam.smartcare.SmartCareApp
+// 1. Imported our custom supabase client
+import com.yourteam.smartcare.utils.supabase
 import com.yourteam.smartcare.emergency.services.EscalationManager
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
@@ -41,8 +42,8 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         try {
             Log.d(TAG, "🚀 ReminderWorker: Fetching live medications for elder $elderId from Supabase...")
 
-            // 2. Query live Supabase table dynamically as requested by team lead
-            val userMeds = SmartCareApp.supabase.from("medications")
+            // 2. Removed 'SmartCareApp.' prefix to use the newly imported client
+            val userMeds = supabase.from("medications")
                 .select {
                     filter { eq("elder_id", elderId) }
                 }

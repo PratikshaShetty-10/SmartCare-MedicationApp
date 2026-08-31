@@ -41,7 +41,6 @@ private fun NavGraphBuilder.setupSmartCareRoutes(navController: NavHostControlle
 
         PatientHomeScreen(
             onTakeMedicineClick = { navController.navigate(Screen.MedicationTracker.route) },
-            onSosClick = { navController.navigate(Screen.EmergencySos.route) },
             onPharmacyClick = { navController.navigate(Screen.PharmacyLocator.route) },
             onScanLabelClick = { navController.navigate(Screen.CameraScanner.route) },
             onLogoutClick = {
@@ -74,10 +73,6 @@ private fun NavGraphBuilder.setupSmartCareRoutes(navController: NavHostControlle
     // 4. UTILITY & TRACKER SCREENS
     composable(Screen.MedicationTracker.route) {
         MedicationTrackerScreen(navController = navController)
-    }
-
-    composable(Screen.EmergencySos.route) {
-        EmergencySosScreen(navController = navController)
     }
 
     composable(Screen.PharmacyLocator.route) {

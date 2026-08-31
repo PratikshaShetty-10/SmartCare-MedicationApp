@@ -17,6 +17,7 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
+import com.yourteam.smartcare.utils.supabase
 
 @Serializable
 data class GuardianRecord(
@@ -58,7 +59,17 @@ class EscalationForegroundService : Service() {
 
         val notificationHelper = NotificationHelper(this)
         val persistentNotif = notificationHelper.buildPersistentNotification("Escalation Active", "Monitoring adherence for $medName...")
-        startForeground(1001, persistentNotif)
+
+        // Safely starts the foreground service for Android 14+ devices
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            startForeground(
+                1001,
+                persistentNotif,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
+        } else {
+            startForeground(1001, persistentNotif)
+        }
 
         scope.launch {
             runEscalationSequence(medName, guardianId)
@@ -71,8 +82,8 @@ class EscalationForegroundService : Service() {
         if (guardianId.isBlank()) return null
         return withContext(Dispatchers.IO) {
             try {
-                // Replace SmartCareApp.supabase with your actual project's Supabase client reference if named differently
-                val result = com.yourteam.smartcare.SmartCareApp.supabase
+                // Fixed the Supabase reference to use the imported utils client
+                val result = supabase
                     .from("guardians")
                     .select(Columns.list("id", "guardian_phone", "fcm_token")) {
                         filter {

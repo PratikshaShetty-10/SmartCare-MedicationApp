@@ -2,11 +2,13 @@ package com.yourteam.smartcare.emergency.services
 
 import android.app.*
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.*
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.yourteam.smartcare.R
-import com.yourteam.smartcare.SmartCareApp
+// 1. Imported our custom supabase client
+import com.yourteam.smartcare.utils.supabase
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
@@ -28,7 +30,13 @@ class GpsTrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, buildNotification())
+        // Added Android 14 safety check for location foreground services
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(1, buildNotification())
+        }
+
         startLocationUpdates()
         return START_STICKY
     }
@@ -41,11 +49,11 @@ class GpsTrackingService : Service() {
                 result.lastLocation?.let { loc ->
                     serviceScope.launch {
                         try {
-                            // Fetch User ID from Supabase Auth Session
-                            val userId = SmartCareApp.supabase.auth.currentSessionOrNull()?.user?.id ?: "anonymous_user"
+                            // 2. Removed 'SmartCareApp.' prefix
+                            val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: "anonymous_user"
 
-                            // Upsert location to Supabase
-                            SmartCareApp.supabase.from("user_locations").upsert(
+                            // 3. Removed 'SmartCareApp.' prefix
+                            supabase.from("user_locations").upsert(
                                 UserLocation(userId, loc.latitude, loc.longitude)
                             )
                         } catch (e: Exception) {

@@ -3,14 +3,30 @@ package com.yourteam.smartcare.api
 import android.content.Context
 import android.telephony.SmsManager
 import android.util.Log
-import com.yourteam.smartcare.SmartCareApp
+// WE FIXED THIS IMPORT to use the active connection
+import com.yourteam.smartcare.data.SupabaseClient
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
+import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
 
-/**
- * Handles communication with Guardians via Push Notifications
- * via Supabase Edge Functions and Direct Cellular SMS.
- */
+@Serializable
+data class AlertPayload(
+    val token: String,
+    val title: String,
+    val body: String
+)
+
+// ADDED: The data class needed for the in-app Guardian banner
+@Serializable
+data class EmergencyAlert(
+    val guardian_id: String,
+    val lat: Double,
+    val lng: Double,
+    val timestamp: String,
+    val status: String = "ACTIVE"
+)
+
 class GuardianNotifier(private val context: Context) {
 
     companion object {
@@ -22,7 +38,7 @@ class GuardianNotifier(private val context: Context) {
     suspend fun saveGuardianToken(userId: String, token: String) {
         cachedToken = token
         try {
-            SmartCareApp.Companion.supabase.from("profiles").update({
+            SupabaseClient.client.from("profiles").update({
                 set("device_token", token)
             }) { filter { eq("id", userId) } }
             Log.d(TAG, "✅ Token saved successfully.")
@@ -35,11 +51,11 @@ class GuardianNotifier(private val context: Context) {
         if (cachedToken != null) return cachedToken
 
         return try {
-            val profile = SmartCareApp.Companion.supabase.from("profiles")
+            val profile = SupabaseClient.client.from("profiles")
                 .select { filter { eq("id", userId) } }
-                .decodeSingleOrNull<Map<String, Any>>()
+                .decodeSingleOrNull<Map<String, String>>()
 
-            cachedToken = profile?.get("device_token") as? String
+            cachedToken = profile?.get("device_token")
             cachedToken
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to fetch token from DB", e)
@@ -47,19 +63,15 @@ class GuardianNotifier(private val context: Context) {
         }
     }
 
-    /**
-     * Fetches the guardian's phone number from Supabase profiles/relationships table.
-     */
     private suspend fun getGuardianPhoneNumber(userId: String): String? {
         if (cachedPhone != null) return cachedPhone
 
         return try {
-            val profile = SmartCareApp.Companion.supabase.from("profiles")
+            val profile = SupabaseClient.client.from("profiles")
                 .select { filter { eq("id", userId) } }
-                .decodeSingleOrNull<Map<String, Any>>()
+                .decodeSingleOrNull<Map<String, String>>()
 
-            // Adjust "phone_number" to match your actual database column name if needed
-            cachedPhone = profile?.get("phone_number") as? String
+            cachedPhone = profile?.get("phone_number")
             cachedPhone
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to fetch phone number from DB", e)
@@ -76,10 +88,13 @@ class GuardianNotifier(private val context: Context) {
         }
 
         return try {
-            SmartCareApp.Companion.supabase.functions.invoke(
+            val payload = AlertPayload(token = token, title = title, body = body)
+
+            SupabaseClient.client.functions.invoke(
                 "send-alert",
-                body = mapOf("token" to token, "title" to title, "body" to body)
+                body = payload
             )
+
             Log.d(TAG, "✅ Notification successfully dispatched to Edge Function")
             true
         } catch (e: Exception) {
@@ -88,9 +103,6 @@ class GuardianNotifier(private val context: Context) {
         }
     }
 
-    /**
-     * Sends an automated emergency SMS using Android's SmsManager.
-     */
     private fun sendEmergencySms(phoneNumber: String, lat: Double, lng: Double, elderName: String = "Elder") {
         try {
             val mapLink = "https://maps.google.com/?q=$lat,$lng"
@@ -110,23 +122,33 @@ class GuardianNotifier(private val context: Context) {
         }
     }
 
-    /**
-     * OPTIMIZED: Triggers both Supabase Push Notification and Cellular SMS Fallback.
-     */
     suspend fun notifySOS(guardianUserId: String, lat: Double, lng: Double): Boolean {
-        // 1. Trigger Supabase Edge Function Push Notification
+        // 1. Send Push Notification
         val pushResult = notifyGuardian(
             guardianUserId,
             "🚨 SOS EMERGENCY!",
             "Help needed! Current location: https://maps.google.com/?q=$lat,$lng"
         )
 
-        // 2. Fetch Guardian's phone number and trigger local SMS fallback
+        // 2. Send SMS
         val phoneNumber = getGuardianPhoneNumber(guardianUserId)
         if (!phoneNumber.isNullOrBlank()) {
             sendEmergencySms(phoneNumber, lat, lng)
         } else {
             Log.w(TAG, "⚠️ Phone number not found for guardian $guardianUserId, SMS skipped.")
+        }
+
+        // 3. NEW: Save to Database for the in-app Red Banner
+        try {
+            val alert = EmergencyAlert(
+                guardian_id = guardianUserId,
+                lat = lat,
+                lng = lng,
+                timestamp = Clock.System.now().toString()
+            )
+            SupabaseClient.client.from("emergency_alerts").insert(alert)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to log alert to DB for in-app banner", e)
         }
 
         return pushResult

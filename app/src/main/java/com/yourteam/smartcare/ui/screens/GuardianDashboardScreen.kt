@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +42,16 @@ fun GuardianDashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // NEW: State to track which medication is currently being edited
+    // --- NEW: Emergency State & Listener ---
+    val activeEmergency by viewModel.activeEmergency.collectAsState()
+    val currentUserId = remember { SupabaseClient.client.auth.currentUserOrNull()?.id ?: "" }
+
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isNotEmpty()) {
+            viewModel.listenForEmergencies(currentUserId)
+        }
+    }
+
     var medToEdit by remember { mutableStateOf<Medication?>(null) }
 
     Scaffold(
@@ -105,6 +115,35 @@ fun GuardianDashboardScreen(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+
+                        // --- NEW: THE SOS BANNER ---
+                        if (activeEmergency != null) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = Color.Red)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(Icons.Default.Warning, contentDescription = "SOS", tint = Color.White, modifier = Modifier.size(48.dp))
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("ACTIVE EMERGENCY!", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color.White)
+                                        Text("The elder has triggered the SOS button.", color = Color.White)
+                                        Text("Location: Lat ${activeEmergency!!.lat}, Lng ${activeEmergency!!.lng}", color = Color.White)
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Button(
+                                            onClick = { viewModel.dismissEmergency() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                                        ) {
+                                            Text("Acknowledge & Dismiss", color = Color.Red, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         item {
                             Text("Adherence & Active Prescriptions", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         }
@@ -137,7 +176,6 @@ fun GuardianDashboardScreen(
                                             Text("Stock: ${med.currentStock} units", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                                         }
 
-                                        // NEW: Edit and Delete Buttons
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(onClick = { medToEdit = med }) {
                                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
@@ -157,9 +195,7 @@ fun GuardianDashboardScreen(
             }
         }
 
-        // --- NEW: The Edit Pop-Up Dialog ---
         if (medToEdit != null) {
-            // Local state for the text fields, pre-filled with the current medication data
             var editName by remember { mutableStateOf(medToEdit!!.medName) }
             var editDosage by remember { mutableStateOf(medToEdit!!.dosage) }
             var editTime by remember { mutableStateOf(medToEdit!!.scheduledTime) }
@@ -209,7 +245,7 @@ fun GuardianDashboardScreen(
                                     newStock = editStock.toIntOrNull() ?: 0
                                 )
                             }
-                            medToEdit = null // Close dialog
+                            medToEdit = null
                         }
                     ) {
                         Text("Save Changes")
