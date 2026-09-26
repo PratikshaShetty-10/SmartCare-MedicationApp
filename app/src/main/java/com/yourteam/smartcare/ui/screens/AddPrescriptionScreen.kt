@@ -14,20 +14,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.yourteam.smartcare.ui.MedicationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPrescriptionScreen(
     navController: NavController,
-    onScanClick: () -> Unit
+    onScanClick: () -> Unit,
+    viewModel: MedicationViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     var medName by remember { mutableStateOf("") }
     var dosage by remember { mutableStateOf("") }
-    var timeSlot by remember { mutableStateOf("08:00 AM") }
+    var timeSlot by remember { mutableStateOf("08:00:00") }
     var totalStock by remember { mutableStateOf("") }
 
     Scaffold(
@@ -54,7 +59,6 @@ fun AddPrescriptionScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Auto-Scan Shortcut Card
             Card(
                 onClick = onScanClick,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -86,7 +90,6 @@ fun AddPrescriptionScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            // Medication Name
             OutlinedTextField(
                 value = medName,
                 onValueChange = { medName = it },
@@ -96,7 +99,6 @@ fun AddPrescriptionScreen(
                 singleLine = true
             )
 
-            // Dosage
             OutlinedTextField(
                 value = dosage,
                 onValueChange = { dosage = it },
@@ -105,17 +107,15 @@ fun AddPrescriptionScreen(
                 singleLine = true
             )
 
-            // Time Schedule
             OutlinedTextField(
                 value = timeSlot,
                 onValueChange = { timeSlot = it },
-                label = { Text("Schedule Time (e.g. 08:00 AM)") },
+                label = { Text("Schedule Time (e.g. 08:00:00)") },
                 leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
-            // Initial Stock Count
             OutlinedTextField(
                 value = totalStock,
                 onValueChange = { totalStock = it },
@@ -127,11 +127,17 @@ fun AddPrescriptionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Save Action Button
             Button(
                 onClick = {
-                    // Teammate will hook this up to Supabase: viewModel.addMedication(...)
-                    navController.popBackStack()
+                    viewModel.addMedication(
+                        medName = medName.trim(),
+                        dosage = dosage.trim(),
+                        scheduledTime = timeSlot.trim(),
+                        currentStock = totalStock.toIntOrNull() ?: 0,
+                        context = context
+                    ) {
+                        navController.popBackStack()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

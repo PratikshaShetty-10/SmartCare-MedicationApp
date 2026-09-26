@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.google.firebase.FirebaseApp // 🚨 ADDED: Firebase Import
 import com.yourteam.smartcare.ui.navigation.NavGraph
 import com.yourteam.smartcare.ui.theme.SmartCareTheme
 
@@ -18,6 +19,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         try {
+            // 🚨 ADDED: Turn on the Firebase Engine before the UI loads!
+            FirebaseApp.initializeApp(this)
+
             setContent {
                 SmartCareTheme {
                     Surface(

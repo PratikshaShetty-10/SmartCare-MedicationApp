@@ -2,8 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Network permission for Codespaces/Flask API -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ===================================== -->
+    <!-- CAMERA PERMISSIONS FOR YOLO SCANNER   -->
+    <!-- ===================================== -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- CHANGED to true: The app needs a camera for the scanner feature -->
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <!-- Location Permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -30,7 +38,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SmartCare">
 
-        <!-- Removed the redundant android:label here -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

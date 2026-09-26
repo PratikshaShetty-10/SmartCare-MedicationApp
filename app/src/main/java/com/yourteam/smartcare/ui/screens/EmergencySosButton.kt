@@ -28,7 +28,7 @@ fun EmergencySosButton(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // 1. Silently fetch the Guardian ID linked to this Elder when the screen loads
+    // 1. Silently fetch the Guardian ID so the button enables itself
     LaunchedEffect(Unit) {
         viewModel.fetchEmergencyData()
     }
@@ -37,14 +37,18 @@ fun EmergencySosButton(
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     val guardianId by viewModel.guardianId.collectAsState()
-    // ADDED THIS: Tracks the database error message
     val statusText by viewModel.statusText.collectAsState()
 
     var buttonState by remember { mutableStateOf(SosButtonState.IDLE) }
 
-    // 2. The core logic: Fetch Elder's Location -> Notify Guardian
+    // 2. The core logic: Firebase Push + SMS + Location
     fun sendSilentSosToGuardian() {
         buttonState = SosButtonState.SENDING
+
+        // 🚨 NEW: Fire the Firebase Push Notification over the internet!
+        viewModel.triggerSosAlert(context)
+
+        // Keep your existing SMS / GPS logic running at the same time
         try {
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 val lat = location?.latitude ?: 0.0
@@ -53,7 +57,6 @@ fun EmergencySosButton(
                 coroutineScope.launch {
                     try {
                         guardianId?.let { id ->
-                            // Sends the exact GPS coordinates to the guardian
                             guardianNotifier.notifySOS(id, lat, lng)
 
                             buttonState = SosButtonState.SENT
@@ -62,12 +65,10 @@ fun EmergencySosButton(
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        // Prevents crash if SMS or network fails
                         buttonState = SosButtonState.IDLE
                     }
                 }
             }.addOnFailureListener {
-                // Prevents crash if GPS location is temporarily unavailable
                 buttonState = SosButtonState.IDLE
             }
         } catch (e: SecurityException) {
@@ -90,11 +91,10 @@ fun EmergencySosButton(
         }
     }
 
-    // 4. The UI Button (Now wrapped in a Column to display the error text)
+    // 4. The UI Button
     Column(modifier = modifier.fillMaxWidth()) {
 
-        // ADDED THIS: Displays the error text right above the button if it fails
-        if (guardianId == null) {
+        if (guardianId == null && statusText.isNotBlank()) {
             Text(
                 text = statusText,
                 color = MaterialTheme.colorScheme.error,
@@ -111,10 +111,8 @@ fun EmergencySosButton(
                 val hasSms = ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
 
                 if (hasLoc && hasSms) {
-                    // Fast path: Permissions already granted
                     sendSilentSosToGuardian()
                 } else {
-                    // Slow path: Request permissions first
                     val permissions = mutableListOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION,

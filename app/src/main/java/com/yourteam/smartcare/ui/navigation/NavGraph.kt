@@ -1,13 +1,16 @@
 package com.yourteam.smartcare.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.yourteam.smartcare.data.SupabaseClient
+import com.yourteam.smartcare.ui.MedicationViewModel
 import com.yourteam.smartcare.ui.screens.*
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
@@ -59,14 +62,26 @@ private fun NavGraphBuilder.setupSmartCareRoutes(navController: NavHostControlle
         GuardianSetupScreen(navController = navController)
     }
 
-    composable(Screen.GuardianDashboard.route) {
-        GuardianDashboardScreen(navController = navController)
+    // Shared ViewModel Scope for Guardian Dashboard & Add Prescription
+    composable(Screen.GuardianDashboard.route) { backStackEntry ->
+        val parentEntry = remember(backStackEntry) {
+            navController.getBackStackEntry(Screen.GuardianDashboard.route)
+        }
+        val sharedViewModel: MedicationViewModel = viewModel(parentEntry)
+
+        GuardianDashboardScreen(navController = navController, viewModel = sharedViewModel)
     }
 
-    composable(Screen.AddPrescription.route) {
+    composable(Screen.AddPrescription.route) { backStackEntry ->
+        val parentEntry = remember(backStackEntry) {
+            navController.getBackStackEntry(Screen.GuardianDashboard.route)
+        }
+        val sharedViewModel: MedicationViewModel = viewModel(parentEntry)
+
         AddPrescriptionScreen(
             navController = navController,
-            onScanClick = { navController.navigate(Screen.CameraScanner.route) }
+            onScanClick = { navController.navigate(Screen.CameraScanner.route) },
+            viewModel = sharedViewModel
         )
     }
 

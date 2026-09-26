@@ -42,13 +42,22 @@ fun GuardianDashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // --- NEW: Emergency State & Listener ---
+    // --- Emergency & Notification States ---
     val activeEmergency by viewModel.activeEmergency.collectAsState()
-    val currentUserId = remember { SupabaseClient.client.auth.currentUserOrNull()?.id ?: "" }
+    val notifications by viewModel.notifications.collectAsState()
+
+    // Safely track current user ID dynamically
+    var currentUserId by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchTodaySchedule()
+        currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id ?: ""
+    }
 
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotEmpty()) {
             viewModel.listenForEmergencies(currentUserId)
+            viewModel.listenForNotifications(currentUserId)
         }
     }
 
@@ -116,7 +125,7 @@ fun GuardianDashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
 
-                        // --- NEW: THE SOS BANNER ---
+                        // --- ACTIVE EMERGENCY SOS BANNER ---
                         if (activeEmergency != null) {
                             item {
                                 Card(
@@ -139,6 +148,47 @@ fun GuardianDashboardScreen(
                                         ) {
                                             Text("Acknowledge & Dismiss", color = Color.Red, fontWeight = FontWeight.Bold)
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- OVERDOSE / MISMATCH WARNING CARDS ---
+                        items(notifications) { notification ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.Warning,
+                                            contentDescription = "Warning",
+                                            tint = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            notification.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        notification.message,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { notification.id?.let { viewModel.dismissNotification(it) } },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Text("Dismiss Alert", color = MaterialTheme.colorScheme.onError)
                                     }
                                 }
                             }

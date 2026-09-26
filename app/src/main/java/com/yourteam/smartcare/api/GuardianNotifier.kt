@@ -3,7 +3,6 @@ package com.yourteam.smartcare.api
 import android.content.Context
 import android.telephony.SmsManager
 import android.util.Log
-// WE FIXED THIS IMPORT to use the active connection
 import com.yourteam.smartcare.data.SupabaseClient
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
@@ -17,7 +16,6 @@ data class AlertPayload(
     val body: String
 )
 
-// ADDED: The data class needed for the in-app Guardian banner
 @Serializable
 data class EmergencyAlert(
     val guardian_id: String,
@@ -39,7 +37,7 @@ class GuardianNotifier(private val context: Context) {
         cachedToken = token
         try {
             SupabaseClient.client.from("profiles").update({
-                set("device_token", token)
+                set("fcm_token", token) // 🚨 FIXED: Changed to fcm_token
             }) { filter { eq("id", userId) } }
             Log.d(TAG, "✅ Token saved successfully.")
         } catch (e: Exception) {
@@ -53,9 +51,9 @@ class GuardianNotifier(private val context: Context) {
         return try {
             val profile = SupabaseClient.client.from("profiles")
                 .select { filter { eq("id", userId) } }
-                .decodeSingleOrNull<Map<String, String>>()
+                .decodeSingleOrNull<Map<String, String?>>() // 🚨 FIX: Added '?' to handle null pair_code
 
-            cachedToken = profile?.get("device_token")
+            cachedToken = profile?.get("fcm_token")
             cachedToken
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to fetch token from DB", e)
@@ -69,9 +67,9 @@ class GuardianNotifier(private val context: Context) {
         return try {
             val profile = SupabaseClient.client.from("profiles")
                 .select { filter { eq("id", userId) } }
-                .decodeSingleOrNull<Map<String, String>>()
+                .decodeSingleOrNull<Map<String, String?>>() // 🚨 FIX: Added '?' to handle null pair_code
 
-            cachedPhone = profile?.get("phone_number")
+            cachedPhone = profile?.get("phone")
             cachedPhone
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to fetch phone number from DB", e)
@@ -90,6 +88,7 @@ class GuardianNotifier(private val context: Context) {
         return try {
             val payload = AlertPayload(token = token, title = title, body = body)
 
+            // This triggers the Supabase Edge Function to send the Firebase message
             SupabaseClient.client.functions.invoke(
                 "send-alert",
                 body = payload
@@ -138,7 +137,7 @@ class GuardianNotifier(private val context: Context) {
             Log.w(TAG, "⚠️ Phone number not found for guardian $guardianUserId, SMS skipped.")
         }
 
-        // 3. NEW: Save to Database for the in-app Red Banner
+        // 3. Save to Database for the in-app Red Banner
         try {
             val alert = EmergencyAlert(
                 guardian_id = guardianUserId,

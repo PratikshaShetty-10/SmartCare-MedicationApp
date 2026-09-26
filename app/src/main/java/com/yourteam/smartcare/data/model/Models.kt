@@ -10,7 +10,7 @@ data class Profile(
     @SerialName("role") val role: String,
     @SerialName("phone") val phone: String,
     @SerialName("pair_code") val pairCode: String? = null,
-    @SerialName("fcm_token") val fcmToken: String? = null, // <- Make sure this line is here!
+    @SerialName("fcm_token") val fcmToken: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -33,6 +33,7 @@ data class Medication(
     @SerialName("min_interval_hours") val minIntervalHours: Int = 4,
     @SerialName("current_stock") val currentStock: Int = 0,
     @SerialName("expiry_date") val expiryDate: String? = null,
+    @SerialName("is_taken") val isTaken: Boolean = false, // 👈 Added this to match the database & UI
     @SerialName("created_at") val createdAt: String? = null
 )
 

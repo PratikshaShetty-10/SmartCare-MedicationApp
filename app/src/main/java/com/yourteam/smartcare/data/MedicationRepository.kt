@@ -8,6 +8,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
 
 class MedicationRepository {
 
@@ -15,6 +16,7 @@ class MedicationRepository {
         val currentUser = SupabaseClient.client.auth.currentUserOrNull()
             ?: return@withContext emptyList()
 
+        // Check if the current user is a guardian linked to an elder
         val relationship = SupabaseClient.client.from("relationships")
             .select {
                 filter { eq("guardian_id", currentUser.id) }
@@ -23,6 +25,7 @@ class MedicationRepository {
 
         val targetElderId = relationship?.elderId ?: currentUser.id
 
+        // Fetch medications for the resolved target ID
         SupabaseClient.client.from("medications")
             .select {
                 filter { eq("elder_id", targetElderId) }
@@ -33,8 +36,8 @@ class MedicationRepository {
     suspend fun recordAdherence(medicationId: String, status: String = "taken") = withContext(Dispatchers.IO) {
         val log = AdherenceLog(
             medicationId = medicationId,
-            scheduledAt = java.time.Instant.now().toString(),
-            takenAt = java.time.Instant.now().toString(),
+            scheduledAt = Instant.now().toString(),
+            takenAt = Instant.now().toString(),
             status = status
         )
         SupabaseClient.client.from("adherence_logs").insert(log)
