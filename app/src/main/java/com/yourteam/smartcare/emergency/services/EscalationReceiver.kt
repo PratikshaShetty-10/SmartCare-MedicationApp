@@ -7,12 +7,10 @@ import android.os.Build
 
 class EscalationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val medName = intent.getStringExtra("MED_NAME") ?: "Medication"
-        val guardianId = intent.getStringExtra("GUARDIAN_ID") ?: "DEFAULT"
+        val medicationId = intent.getStringExtra("MEDICATION_ID") ?: ""
 
         val serviceIntent = Intent(context, EscalationForegroundService::class.java).apply {
-            putExtra("MED_NAME", medName)
-            putExtra("GUARDIAN_ID", guardianId)
+            putExtra("MEDICATION_ID", medicationId)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

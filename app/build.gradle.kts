@@ -14,7 +14,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 
-    // 🚨 FIX: Google Services plugin with the version number directly attached!
+    // Google Services plugin
     id("com.google.gms.google-services") version "4.4.1"
 }
 
@@ -37,6 +37,7 @@ android {
             "SUPABASE_URL",
             "\"${secretProperties.getProperty("SUPABASE_URL") ?: ""}\""
         )
+
         buildConfigField(
             "String",
             "SUPABASE_KEY",
@@ -47,6 +48,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -54,7 +56,10 @@ android {
         }
     }
 
+    // Java 8+ API desugaring
+    // Required because minSdk is 24 while the app uses java.time APIs.
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -72,6 +77,7 @@ android {
             excludes += "/META-INF/license.txt"
             excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/notice.txt"
             excludes += "/META-INF/ASL2.0"
             excludes += "/META-INF/*.kotlin_module"
@@ -81,11 +87,20 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        )
     }
 }
 
 dependencies {
+
+    // Java 8+ API desugaring
+    // Allows java.time APIs to work on devices with API 24+
+    coreLibraryDesugaring(
+        "com.android.tools:desugar_jdk_libs:2.1.5"
+    )
+
     // AndroidX Core & Lifecycle
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -110,51 +125,118 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Supabase Dependencies
-    implementation(platform("io.github.jan-tennert.supabase:bom:3.1.1"))
-    implementation("io.github.jan-tennert.supabase:postgrest-kt")
-    implementation("io.github.jan-tennert.supabase:auth-kt")
-    implementation("io.github.jan-tennert.supabase:functions-kt")
+    implementation(
+        platform(
+            "io.github.jan-tennert.supabase:bom:3.1.1"
+        )
+    )
+    implementation(
+        "io.github.jan-tennert.supabase:postgrest-kt"
+    )
+    implementation(
+        "io.github.jan-tennert.supabase:auth-kt"
+    )
+    implementation(
+        "io.github.jan-tennert.supabase:functions-kt"
+    )
 
     // Ktor Dependencies
     val ktorVersion = "3.1.1"
-    implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+
+    implementation(
+        "io.ktor:ktor-client-core:$ktorVersion"
+    )
+    implementation(
+        "io.ktor:ktor-client-okhttp:$ktorVersion"
+    )
+    implementation(
+        "io.ktor:ktor-client-content-negotiation:$ktorVersion"
+    )
+    implementation(
+        "io.ktor:ktor-serialization-kotlinx-json:$ktorVersion"
+    )
 
     // Testing
     testImplementation(libs.junit)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-    debugImplementation(libs.androidx.compose.ui.tooling)
+
+    androidTestImplementation(
+        platform(libs.androidx.compose.bom)
+    )
+    androidTestImplementation(
+        libs.androidx.compose.ui.test.junit4
+    )
+    androidTestImplementation(
+        libs.androidx.espresso.core
+    )
+    androidTestImplementation(
+        libs.androidx.junit
+    )
+
+    debugImplementation(
+        libs.androidx.compose.ui.test.manifest
+    )
+    debugImplementation(
+        libs.androidx.compose.ui.tooling
+    )
 
     // Firebase
-    implementation("com.google.firebase:firebase-messaging-ktx:23.4.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.20.0")
+    implementation(
+        "com.google.firebase:firebase-messaging-ktx:23.4.1"
+    )
+    implementation(
+        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3"
+    )
+    implementation(
+        "com.google.auth:google-auth-library-oauth2-http:1.20.0"
+    )
 
     // Emergency & Notifications
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation(
+        "androidx.work:work-runtime-ktx:2.9.0"
+    )
+    implementation(
+        "com.google.android.gms:play-services-location:21.3.0"
+    )
 
     // AI Scanner
     val cameraxVersion = "1.3.4"
-    implementation("androidx.camera:camera-core:$cameraxVersion")
-    implementation("androidx.camera:camera-camera2:$cameraxVersion")
-    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
-    implementation("androidx.camera:camera-view:$cameraxVersion")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.google.code.gson:gson:2.10.1")
+
+    implementation(
+        "androidx.camera:camera-core:$cameraxVersion"
+    )
+    implementation(
+        "androidx.camera:camera-camera2:$cameraxVersion"
+    )
+    implementation(
+        "androidx.camera:camera-lifecycle:$cameraxVersion"
+    )
+    implementation(
+        "androidx.camera:camera-view:$cameraxVersion"
+    )
+
+    implementation(
+        "com.squareup.okhttp3:okhttp:4.12.0"
+    )
+
+    implementation(
+        "com.squareup.retrofit2:retrofit:2.9.0"
+    )
+    implementation(
+        "com.squareup.retrofit2:converter-gson:2.9.0"
+    )
+
+    implementation(
+        "com.google.code.gson:gson:2.10.1"
+    )
 }
 
 configurations.all {
     resolutionStrategy {
-        force("io.ktor:ktor-client-core:3.1.1")
-        force("io.ktor:ktor-client-okhttp:3.1.1")
+        force(
+            "io.ktor:ktor-client-core:3.1.1"
+        )
+        force(
+            "io.ktor:ktor-client-okhttp:3.1.1"
+        )
     }
 }

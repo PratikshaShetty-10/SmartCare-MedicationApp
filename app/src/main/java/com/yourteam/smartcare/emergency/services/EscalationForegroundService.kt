@@ -18,12 +18,22 @@ import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import com.yourteam.smartcare.utils.supabase
+import io.github.jan.supabase.auth.auth
 
 @Serializable
 data class GuardianRecord(
-    val id: String,
-    val guardian_phone: String?,
+    val phone: String?,
     val fcm_token: String?
+)
+
+@Serializable
+data class RelationshipRecord(
+    val guardian_id: String
+)
+
+@Serializable
+data class MedicationRecord(
+    val med_name: String?
 )
 
 class EscalationForegroundService : Service() {
@@ -49,8 +59,12 @@ class EscalationForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val medName = intent?.getStringExtra("MED_NAME") ?: "Medication"
-        val guardianId = intent?.getStringExtra("GUARDIAN_ID") ?: ""
+        // Dynamically receives the medication row ID passed from the alarm/worker trigger
+        val medicationId = intent?.getStringExtra("MEDICATION_ID") ?: ""
+
+
+        // Automatically grabs the logged-in user's UUID from the active session safely
+        val elderId = supabase.auth.currentSessionOrNull()?.user?.id ?: ""
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmartCare::EscalationWakeLock").apply {
@@ -58,9 +72,8 @@ class EscalationForegroundService : Service() {
         }
 
         val notificationHelper = NotificationHelper(this)
-        val persistentNotif = notificationHelper.buildPersistentNotification("Escalation Active", "Monitoring adherence for $medName...")
+        val persistentNotif = notificationHelper.buildPersistentNotification("Escalation Active", "Monitoring adherence...")
 
-        // Safely starts the foreground service for Android 14+ devices
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             startForeground(
                 1001,
@@ -72,26 +85,27 @@ class EscalationForegroundService : Service() {
         }
 
         scope.launch {
-            runEscalationSequence(medName, guardianId)
+            // Dynamically query the medication name from Supabase using the row ID
+            val medName = fetchMedicationNameFromSupabase(medicationId) ?: "Scheduled Medication"
+            runEscalationSequence(medName, elderId)
         }
 
         return START_NOT_STICKY
     }
 
-    private suspend fun fetchGuardianFromSupabase(guardianId: String): GuardianRecord? {
-        if (guardianId.isBlank()) return null
+    private suspend fun fetchMedicationNameFromSupabase(medicationId: String): String? {
+        if (medicationId.isBlank()) return null
         return withContext(Dispatchers.IO) {
             try {
-                // Fixed the Supabase reference to use the imported utils client
                 val result = supabase
-                    .from("guardians")
-                    .select(Columns.list("id", "guardian_phone", "fcm_token")) {
+                    .from("medications")
+                    .select(Columns.list("med_name") ) {
                         filter {
-                            eq("id", guardianId)
+                            eq("id", medicationId)
                         }
                     }
-                    .decodeSingleOrNull<GuardianRecord>()
-                result
+                    .decodeSingleOrNull<MedicationRecord>()
+                result?.med_name
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
@@ -99,7 +113,41 @@ class EscalationForegroundService : Service() {
         }
     }
 
-    private suspend fun runEscalationSequence(medName: String, guardianId: String) {
+    private suspend fun fetchGuardianFromSupabase(elderId: String): GuardianRecord? {
+        if (elderId.isBlank()) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                // Step 1: Find the guardian_id linked to this elder in the relationships table
+                val relationshipResult = supabase
+                    .from("relationships")
+                    .select(Columns.list("guardian_id")) {
+                        filter {
+                            eq("elder_id", elderId)
+                        }
+                    }
+                    .decodeSingleOrNull<RelationshipRecord>()
+
+                val guardianId = relationshipResult?.guardian_id ?: return@withContext null
+
+                // Step 2: Fetch the guardian's phone and fcm_token from profiles using their guardian_id
+                val profileResult = supabase
+                    .from("profiles")
+                    .select(Columns.list("phone", "fcm_token")) {
+                        filter {
+                            eq("id", guardianId)
+                        }
+                    }
+                    .decodeSingleOrNull<GuardianRecord>()
+
+                profileResult
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+
+    private suspend fun runEscalationSequence(medName: String, elderId: String) {
         val notificationHelper = NotificationHelper(applicationContext)
         val voiceHelper = VoiceHelper(applicationContext)
         val vibrationHelper = VibrationHelper(applicationContext)
@@ -108,32 +156,31 @@ class EscalationForegroundService : Service() {
         delay(1000)
 
         // ==========================================================
-        // LEVEL 1: IMMEDIATE (0 MINUTES) - SILENT NOTIFICATION + VIBRATION ONLY
+        // LEVEL 1: IMMEDIATE (0 MINUTES) - NOTIFICATION + VIBRATION
         // ==========================================================
         notificationHelper.showReminder("⏰ Medication Reminder", "Time to take your $medName")
         vibrationHelper.vibrate(600)
 
-        // Wait 5 minutes
-        delay(300_000)
+        // TESTING DELAY: 2 minutes -> 120_000L (Change to 300_000L for production)
+        delay(120_000L)
 
         // ==========================================================
-        // LEVEL 2: AFTER 5 MINUTES - REMINDER + VOICE MESSAGE
+        // LEVEL 2: AFTER 2 MINUTES - REMINDER + VOICE MESSAGE
         // ==========================================================
         notificationHelper.showReminder("⏰ Reminder", "Please take your $medName.")
         vibrationHelper.vibratePattern(longArrayOf(0, 500, 200, 500))
         voiceHelper.speak("Please take your $medName.")
 
-        // Wait another 5 minutes (Total 10 minutes)
-        delay(300_000)
+        // TESTING DELAY: 2 minutes -> 120_000L (Change to 300_000L for production)
+        delay(120_000L)
 
         // ==========================================================
-        // LEVEL 3: AFTER 10 MINUTES - INDEPENDENT ALARM + SUPABASE GUARDIAN + LIVE GPS
+        // LEVEL 3: AFTER 4 MINUTES TOTAL - ALARM + DATABASE GUARDIAN + GPS
         // ==========================================================
         isEscalationActive = true
         notificationHelper.showEmergencyAlarm("🚨 EMERGENCY", "$medName is missed!")
         vibrationHelper.vibratePattern(longArrayOf(0, 1000, 500, 1000, 500, 1000), 0)
 
-        // 1. Play Standalone Escalation Ringtone
         try {
             if (mediaPlayerInstance == null) {
                 mediaPlayerInstance = MediaPlayer.create(applicationContext, android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI).apply {
@@ -146,18 +193,16 @@ class EscalationForegroundService : Service() {
             e.printStackTrace()
         }
 
-        // 2. Launch Full-Screen Emergency Popup Activity over lock screen
         val popupIntent = Intent(applicationContext, EmergencyPopupActivity::class.java).apply {
             putExtra("MED_NAME", medName)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         applicationContext.startActivity(popupIntent)
 
-        // 3. Fetch Guardian details from Supabase & Live GPS coordinates, then notify
         withContext(Dispatchers.IO) {
             try {
-                val guardianRecord = fetchGuardianFromSupabase(guardianId)
-                val targetPhone = guardianRecord?.guardian_phone ?: guardianId
+                val guardianRecord = fetchGuardianFromSupabase(elderId)
+                val targetPhone = guardianRecord?.phone ?: ""
 
                 val hasFineLocation = ContextCompat.checkSelfPermission(
                     applicationContext,
@@ -178,22 +223,26 @@ class EscalationForegroundService : Service() {
 
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                guardianNotifier.notifyGuardian(
-                                    targetPhone,
-                                    "🚨 EMERGENCY!",
-                                    "Patient has missed their scheduled dose of $medName! Live Location: $mapsLink"
-                                )
+                                if (targetPhone.isNotBlank()) {
+                                    guardianNotifier.notifyGuardian(
+                                        targetPhone,
+                                        "🚨 EMERGENCY!",
+                                        "Patient has missed their scheduled dose of $medName! Live Location: $mapsLink"
+                                    )
+                                }
                             } catch (err: Exception) {
                                 err.printStackTrace()
                             }
                         }
                     }
                 } else {
-                    guardianNotifier.notifyGuardian(
-                        targetPhone,
-                        "🚨 EMERGENCY!",
-                        "Patient has missed their scheduled dose of $medName! (Location permission unavailable)"
-                    )
+                    if (targetPhone.isNotBlank()) {
+                        guardianNotifier.notifyGuardian(
+                            targetPhone,
+                            "🚨 EMERGENCY!",
+                            "Patient has missed their scheduled dose of $medName! (Location permission unavailable)"
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -201,21 +250,23 @@ class EscalationForegroundService : Service() {
         }
 
         // ==========================================================
-        // 10-MINUTE UNACKNOWLEDGED ESCALATION WINDOW
+        // FINAL UNACKNOWLEDGED ESCALATION WINDOW (2 mins)
         // ==========================================================
-        delay(600_000)
+        delay(120_000L)
 
         if (isEscalationActive) {
             withContext(Dispatchers.IO) {
                 try {
-                    val guardianRecord = fetchGuardianFromSupabase(guardianId)
-                    val targetPhone = guardianRecord?.guardian_phone ?: guardianId
+                    val guardianRecord = fetchGuardianFromSupabase(elderId)
+                    val targetPhone = guardianRecord?.phone ?: ""
 
-                    guardianNotifier.notifyGuardian(
-                        targetPhone,
-                        "⚠️ CRITICAL UNATTENDED ALERT!",
-                        "Patient has STILL NOT taken $medName after 10 minutes of continuous emergency sounding!"
-                    )
+                    if (targetPhone.isNotBlank()) {
+                        guardianNotifier.notifyGuardian(
+                            targetPhone,
+                            "⚠️ CRITICAL UNATTENDED ALERT!",
+                            "Patient has STILL NOT taken $medName after continuous emergency sounding!"
+                        )
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
