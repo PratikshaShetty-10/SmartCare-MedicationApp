@@ -72,6 +72,18 @@ private fun NavGraphBuilder.setupSmartCareRoutes(navController: NavHostControlle
         GuardianDashboardScreen(navController = navController, viewModel = sharedViewModel)
     }
 
+    composable(Screen.AdherenceReport.route) { backStackEntry ->
+        val parentEntry = remember(backStackEntry) {
+            navController.getBackStackEntry(Screen.GuardianDashboard.route)
+        }
+        val sharedViewModel: MedicationViewModel = viewModel(parentEntry)
+
+        AdherenceReportScreen(
+            navController = navController,
+            viewModel = sharedViewModel
+        )
+    }
+
     composable(Screen.AddPrescription.route) { backStackEntry ->
         val parentEntry = remember(backStackEntry) {
             navController.getBackStackEntry(Screen.GuardianDashboard.route)

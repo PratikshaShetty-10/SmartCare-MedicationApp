@@ -195,7 +195,26 @@ fun GuardianDashboardScreen(
                         }
 
                         item {
-                            Text("Adherence & Active Prescriptions", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "Adherence & Active Prescriptions",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        navController.navigate(Screen.AdherenceReport.route)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("View Adherence Report")
+                                }
+                            }
                         }
 
                         if (medications.isEmpty()) {

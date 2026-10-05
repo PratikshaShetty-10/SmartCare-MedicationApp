@@ -9,6 +9,8 @@ sealed class Screen(val route: String) {
     object GuardianSetup : Screen("guardian_setup")
     object GuardianDashboard : Screen("guardian_dashboard") // Base route name without parameter
     object AddPrescription : Screen("add_prescription") // <--- Added AddPrescription
+
+    object AdherenceReport : Screen("adherence_report")
     object CameraScanner : Screen("camera_scanner")
     object PharmacyLocator : Screen("pharmacy_locator")
 }

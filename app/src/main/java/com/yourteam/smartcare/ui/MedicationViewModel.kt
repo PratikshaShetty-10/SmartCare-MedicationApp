@@ -8,6 +8,7 @@ import com.yourteam.smartcare.SmartCareApp
 import com.yourteam.smartcare.api.EmergencyAlert
 import com.yourteam.smartcare.api.MedicationScheduleNotifier
 import com.yourteam.smartcare.data.SupabaseClient
+import com.yourteam.smartcare.data.model.AdherenceLog
 import com.yourteam.smartcare.data.model.Medication
 import com.yourteam.smartcare.data.model.Relationship
 import com.yourteam.smartcare.data.repository.MedicationRepository
@@ -59,6 +60,21 @@ sealed interface MedicationUiState {
     ) : MedicationUiState
 }
 
+
+sealed interface AdherenceReportUiState {
+    object Loading : AdherenceReportUiState
+
+    data class Success(
+        val logs: List<AdherenceLog>
+    ) : AdherenceReportUiState
+
+    data class Error(
+        val message: String
+    ) : AdherenceReportUiState
+}
+
+
+
 class MedicationViewModel : ViewModel() {
 
     private val repository = MedicationRepository()
@@ -71,6 +87,17 @@ class MedicationViewModel : ViewModel() {
 
     val uiState: StateFlow<MedicationUiState> =
         _uiState.asStateFlow()
+
+
+
+    // --- P7 Adherence Report State ---
+    private val _adherenceReportState =
+        MutableStateFlow<AdherenceReportUiState>(
+            AdherenceReportUiState.Loading
+        )
+
+    val adherenceReportState: StateFlow<AdherenceReportUiState> =
+        _adherenceReportState.asStateFlow()
 
     // --- Emergency Tracking State ---
     private val _activeEmergency =
@@ -172,6 +199,35 @@ class MedicationViewModel : ViewModel() {
 
     fun dismissEmergency() {
         _activeEmergency.value = null
+    }
+
+
+    // --- P7: Load Guardian Adherence Report ---
+    fun loadAdherenceReport() {
+        viewModelScope.launch {
+            _adherenceReportState.value =
+                AdherenceReportUiState.Loading
+
+            try {
+                val logs = repository.getAdherenceLogs()
+
+                _adherenceReportState.value =
+                    AdherenceReportUiState.Success(logs)
+
+            } catch (e: Exception) {
+                Log.e(
+                    "MedVM",
+                    "Failed to load adherence report: ${e.localizedMessage}",
+                    e
+                )
+
+                _adherenceReportState.value =
+                    AdherenceReportUiState.Error(
+                        e.localizedMessage
+                            ?: "Failed to load adherence report."
+                    )
+            }
+        }
     }
 
     // --- Fetch medication schedule ---
