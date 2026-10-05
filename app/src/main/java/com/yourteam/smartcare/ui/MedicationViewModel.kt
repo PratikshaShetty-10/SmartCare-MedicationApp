@@ -486,11 +486,22 @@ class MedicationViewModel : ViewModel() {
                             medToUpdate?.currentStock ?: 0
                         }
 
+                    /*
+                     * P6:
+                     * Do NOT update medications.is_taken here.
+                     *
+                     * medications = persistent prescription
+                     * DoseOccurrence = today's dose state
+                     *
+                     * DoseAcknowledger has already marked today's
+                     * DoseOccurrence as TAKEN and synced the adherence
+                     * record. Only stock belongs to the permanent
+                     * medication row here.
+                     */
                     SupabaseClient.client
                         .from("medications")
                         .update(
                             {
-                                set("is_taken", true)
                                 set("current_stock", newStock)
                             }
                         ) {

@@ -20,6 +20,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.yourteam.smartcare.ui.MedicationUiState
 import com.yourteam.smartcare.ui.MedicationViewModel
+import androidx.compose.ui.platform.LocalContext
+import com.yourteam.smartcare.escalation.DoseStatus
+import com.yourteam.smartcare.escalation.DoseStore
+import com.yourteam.smartcare.escalation.EscalationScheduler
+import com.yourteam.smartcare.escalation.ScheduledMed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,14 +33,23 @@ fun MedicationTrackerScreen(
     viewModel: MedicationViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Daily Medication Tracker", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "Daily Medication Tracker",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -45,12 +59,14 @@ fun MedicationTrackerScreen(
             )
         }
     ) { innerPadding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+
             Text(
                 text = "Today's Schedule",
                 fontSize = 20.sp,
@@ -59,86 +75,207 @@ fun MedicationTrackerScreen(
             )
 
             when (val state = uiState) {
+
                 is MedicationUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         CircularProgressIndicator()
                     }
                 }
+
                 is MedicationUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "Error: ${state.message}", color = MaterialTheme.colorScheme.error)
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Error: ${state.message}",
+                                color = MaterialTheme.colorScheme.error
+                            )
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { viewModel.fetchTodaySchedule() }) {
+
+                            Button(
+                                onClick = {
+                                    viewModel.fetchTodaySchedule()
+                                }
+                            ) {
                                 Text("Retry")
                             }
                         }
                     }
                 }
+
                 is MedicationUiState.Success -> {
+
                     if (state.medications.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No medications scheduled for today.", fontSize = 16.sp)
+
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "No medications scheduled for today.",
+                                fontSize = 16.sp
+                            )
                         }
+
                     } else {
+
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(state.medications, key = { it.id ?: it.medName }) { med ->
 
-                                // NEW: Local states for instant UI updates!
-                                var isTakenLocal by remember(med.id) { mutableStateOf(false) }
-                                var currentStockLocal by remember(med.id) { mutableStateOf(med.currentStock) }
+                            items(
+                                state.medications,
+                                key = { it.id ?: it.medName }
+                            ) { med ->
+
+                                // Local stock state for instant UI update
+                                var currentStockLocal by remember(med.id) {
+                                    mutableStateOf(med.currentStock)
+                                }
+
+                                // Read today's occurrence status
+                                val doseStatus =
+                                    med.id?.let { medicationId ->
+
+                                        val scheduledAtMs =
+                                            EscalationScheduler.scheduledTodayMs(
+                                                ScheduledMed(
+                                                    medicationId = medicationId,
+                                                    medName = med.medName,
+                                                    dosage = med.dosage,
+                                                    time = med.scheduledTime
+                                                )
+                                            )
+
+                                        scheduledAtMs?.let { scheduledTimeMs ->
+
+                                            val occurrenceId =
+                                                DoseStore.occurrenceId(
+                                                    medicationId,
+                                                    scheduledTimeMs
+                                                )
+
+                                            DoseStore.get(
+                                                context,
+                                                occurrenceId
+                                            )?.status ?: DoseStatus.PENDING
+
+                                        } ?: DoseStatus.PENDING
+
+                                    } ?: DoseStatus.PENDING
 
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    colors = CardDefaults.cardColors(
+                                        containerColor =
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                    )
                                 ) {
+
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement =
+                                            Arrangement.SpaceBetween
                                     ) {
+
                                         Column {
+
                                             Text(
                                                 text = med.medName,
                                                 fontSize = 18.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
+
                                             Text(
                                                 text = "${med.dosage} • ${med.scheduledTime}",
                                                 fontSize = 14.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+
                                             Text(
-                                                // NEW: Displays the locally updated stock
                                                 text = "Stock: $currentStockLocal left",
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.outline
                                             )
                                         }
 
-                                        IconButton(
-                                            onClick = {
-                                                // NEW: Only trigger if they haven't already clicked it
-                                                if (!isTakenLocal && med.id != null) {
-                                                    isTakenLocal = true
-                                                    currentStockLocal -= 1
+                                        // Show action based on today's dose status
+                                        when (doseStatus) {
 
-                                                    // Tell the ViewModel to update the database in the background
-                                                    viewModel.markAsTaken(med.id)
+                                            DoseStatus.TAKEN -> {
+                                                Row(
+                                                    verticalAlignment =
+                                                        Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                            Icons.Default.CheckCircle,
+                                                        contentDescription = "Taken",
+                                                        tint = Color(0xFF2E7D32)
+                                                    )
+
+                                                    Spacer(
+                                                        modifier =
+                                                            Modifier.width(4.dp)
+                                                    )
+
+                                                    Text(
+                                                        text = "Taken",
+                                                        color = Color(0xFF2E7D32),
+                                                        fontWeight =
+                                                            FontWeight.Bold,
+                                                        fontSize = 14.sp
+                                                    )
                                                 }
                                             }
-                                        ) {
-                                            // NEW: Show a green checkmark if clicked, or the normal circle if not
-                                            Icon(
-                                                imageVector = if (isTakenLocal) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                                contentDescription = "Mark Taken",
-                                                tint = if (isTakenLocal) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(32.dp)
-                                            )
+
+                                            DoseStatus.MISSED -> {
+                                                Text(
+                                                    text = "Missed",
+                                                    color =
+                                                        MaterialTheme.colorScheme.error,
+                                                    fontWeight =
+                                                        FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                            }
+
+                                            else -> {
+                                                IconButton(
+                                                    onClick = {
+                                                        if (med.id != null) {
+                                                            currentStockLocal -= 1
+
+                                                            viewModel.markAsTaken(
+                                                                med.id,
+                                                                context
+                                                            )
+                                                        }
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                            Icons.Default.RadioButtonUnchecked,
+                                                        contentDescription =
+                                                            "Mark Taken",
+                                                        tint =
+                                                            MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

@@ -8,57 +8,104 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.yourteam.smartcare.R
 import com.yourteam.smartcare.utils.NotificationHelper
 import com.yourteam.smartcare.utils.VibrationHelper
 import com.yourteam.smartcare.utils.VoiceHelper
 
 /**
- * The ONE audio owner for medication escalation (foreground type: mediaPlayback, no location).
- * Short-lived: started by an alarm at Step 2 (TTS) / Step 3 (alarm), stops itself when idle.
- * Rules: an alarm outranks voice; TTS is cut when an alarm starts; one MediaPlayer, instance-scoped.
+ * ONE audio owner for medication escalation.
+ *
+ * Step 2:
+ * - TTS voice reminder
+ *
+ * Step 3:
+ * - medication_alarm.mp3
+ * - looping alarm
+ * - vibration
+ *
+ * The alarm uses the application's bundled raw resource instead of
+ * the device's system ringtone/alarm URI.
  */
 class DoseAudioService : Service() {
 
     companion object {
         private const val TAG = "DoseAudioService"
-        const val ACTION_SPEAK = "com.yourteam.smartcare.action.DOSE_SPEAK"
-        const val ACTION_ALARM = "com.yourteam.smartcare.action.DOSE_ALARM"
-        const val ACTION_STOP = "com.yourteam.smartcare.action.DOSE_STOP"
+
+        const val ACTION_SPEAK =
+            "com.yourteam.smartcare.action.DOSE_SPEAK"
+
+        const val ACTION_ALARM =
+            "com.yourteam.smartcare.action.DOSE_ALARM"
+
+        const val ACTION_STOP =
+            "com.yourteam.smartcare.action.DOSE_STOP"
+
         private const val EXTRA_OCC_ID = "occ_id"
+
         private const val SPEECH_TIMEOUT_MS = 30_000L
         private const val WATCHDOG_MS = 3_000L
 
-        @Volatile var isRunning = false
+        @Volatile
+        var isRunning = false
             private set
 
-        private fun intent(ctx: Context, action: String, occId: String?) =
-            Intent(ctx, DoseAudioService::class.java)
+        private fun intent(
+            ctx: Context,
+            action: String,
+            occId: String?
+        ): Intent {
+            return Intent(
+                ctx,
+                DoseAudioService::class.java
+            )
                 .setAction(action)
                 .putExtra(EXTRA_OCC_ID, occId)
+        }
 
-        /** Throws if Android refuses; the caller falls back to notification-only behaviour. */
-        fun start(ctx: Context, action: String, occId: String) =
+        /**
+         * Starts the foreground audio service.
+         */
+        fun start(
+            ctx: Context,
+            action: String,
+            occId: String
+        ) {
             ContextCompat.startForegroundService(
                 ctx,
-                intent(ctx, action, occId)
+                intent(
+                    ctx,
+                    action,
+                    occId
+                )
             )
+        }
 
-        /** Stop audio for one occurrence (null = everything). No-op if the service is not running. */
-        fun stop(ctx: Context, occId: String?) {
+        /**
+         * Stops audio for one occurrence.
+         *
+         * null = stop everything.
+         */
+        fun stop(
+            ctx: Context,
+            occId: String?
+        ) {
             if (!isRunning) return
 
             try {
                 ctx.startService(
-                    intent(ctx, ACTION_STOP, occId)
+                    intent(
+                        ctx,
+                        ACTION_STOP,
+                        occId
+                    )
                 )
             } catch (e: Exception) {
                 Log.w(
@@ -69,81 +116,110 @@ class DoseAudioService : Service() {
         }
     }
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler =
+        Handler(Looper.getMainLooper())
 
     private var player: MediaPlayer? = null
+
     private var voice: VoiceHelper? = null
+
     private var vibration: VibrationHelper? = null
+
     private var focusRequest: AudioFocusRequest? = null
 
-    private val alarmOccs = linkedSetOf<String>()
+    /**
+     * Occurrences currently playing the alarm.
+     */
+    private val alarmOccs =
+        linkedSetOf<String>()
 
     private var speechInFlight = 0
+
     private var speakingOcc: String? = null
 
-    private val speechTimeout = Runnable {
-        speechInFlight = 0
-        speakingOcc = null
-        stopIfIdle()
-    }
+    /**
+     * Prevents TTS from remaining active forever if the
+     * VoiceHelper callback is not returned.
+     */
+    private val speechTimeout =
+        Runnable {
+
+            Log.w(
+                TAG,
+                "speech timeout reached"
+            )
+
+            speechInFlight = 0
+            speakingOcc = null
+
+            stopIfIdle()
+        }
 
     /**
-     * Defensive: silence anything whose dose is no longer PENDING,
-     * or past the timeout instant.
+     * Defensive watchdog for the looping medication alarm.
+     *
+     * It checks the DoseStore and stops alarms whose dose
+     * is no longer pending or whose escalation window expired.
      */
-    private val watchdog = object : Runnable {
+    private val watchdog =
+        object : Runnable {
 
-        override fun run() {
+            override fun run() {
 
-            val now = System.currentTimeMillis()
+                val now =
+                    System.currentTimeMillis()
 
-            alarmOccs.toList().forEach { id ->
+                alarmOccs
+                    .toList()
+                    .forEach { id ->
 
-                val occ = DoseStore.get(
-                    this@DoseAudioService,
-                    id
-                )
+                        val occ =
+                            DoseStore.get(
+                                this@DoseAudioService,
+                                id
+                            )
 
-                val expired =
-                    occ == null ||
-                            occ.status != DoseStatus.PENDING ||
-                            now >
-                            occ.scheduledAtMs +
-                            EscalationConfig.offsetMs(
-                                EscalationConfig.STAGE_TIMEOUT
-                            ) +
-                            EscalationConfig.ALARM_SAFETY_MARGIN_MS
+                        val expired =
+                            occ == null ||
+                                    occ.status != DoseStatus.PENDING ||
+                                    now >
+                                    occ.scheduledAtMs +
+                                    EscalationConfig.offsetMs(
+                                        EscalationConfig.STAGE_TIMEOUT
+                                    ) +
+                                    EscalationConfig.ALARM_SAFETY_MARGIN_MS
 
-                if (expired) {
+                        if (expired) {
 
-                    Log.i(
-                        TAG,
-                        "watchdog: stopping expired alarm " +
-                                "occ=$id " +
-                                "now=$now " +
-                                "scheduled=${occ?.scheduledAtMs}"
+                            Log.i(
+                                TAG,
+                                "watchdog: stopping expired alarm " +
+                                        "occ=$id " +
+                                        "now=$now " +
+                                        "scheduled=${occ?.scheduledAtMs}"
+                            )
+
+                            alarmOccs.remove(id)
+                        }
+                    }
+
+                if (alarmOccs.isEmpty()) {
+
+                    stopPlayback()
+                    stopIfIdle()
+
+                } else {
+
+                    handler.postDelayed(
+                        this,
+                        WATCHDOG_MS
                     )
-
-                    alarmOccs.remove(id)
                 }
             }
-
-            if (alarmOccs.isEmpty()) {
-
-                stopPlayback()
-                stopIfIdle()
-
-            } else {
-
-                handler.postDelayed(
-                    this,
-                    WATCHDOG_MS
-                )
-            }
         }
-    }
 
     override fun onCreate() {
+
         super.onCreate()
 
         isRunning = true
@@ -160,32 +236,49 @@ class DoseAudioService : Service() {
         startId: Int
     ): Int {
 
-        // Must go foreground immediately on every start.
+        /**
+         * Android requires the foreground service notification
+         * to be started immediately.
+         */
         ServiceCompat.startForeground(
             this,
             NotificationHelper.NOTIFICATION_ID_DOSE_SERVICE,
-            NotificationHelper(this).buildDoseServiceNotification(),
+            NotificationHelper(this)
+                .buildDoseServiceNotification(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
         )
 
         val occId =
-            intent?.getStringExtra(EXTRA_OCC_ID)
+            intent?.getStringExtra(
+                EXTRA_OCC_ID
+            )
 
         Log.i(
             TAG,
-            "onStartCommand: action=${intent?.action}, occId=$occId"
+            "onStartCommand: " +
+                    "action=${intent?.action}, " +
+                    "occId=$occId"
         )
 
         when (intent?.action) {
 
-            ACTION_SPEAK ->
-                occId?.let(::handleSpeak)
+            ACTION_SPEAK -> {
+                occId?.let(
+                    ::handleSpeak
+                )
+            }
 
-            ACTION_ALARM ->
-                occId?.let(::handleAlarm)
+            ACTION_ALARM -> {
+                occId?.let(
+                    ::handleAlarm
+                )
+            }
 
-            ACTION_STOP ->
-                handleStop(occId)
+            ACTION_STOP -> {
+                handleStop(
+                    occId
+                )
+            }
         }
 
         stopIfIdle()
@@ -193,25 +286,43 @@ class DoseAudioService : Service() {
         return START_NOT_STICKY
     }
 
-    // ---------------- Step 2: voice ----------------
+    // ==========================================================
+    // STEP 2 — VOICE / TTS
+    // ==========================================================
 
     private fun handleSpeak(
         occId: String
     ) {
 
-        val occ = DoseStore.get(
-            this,
-            occId
-        )
+        val occ =
+            DoseStore.get(
+                this,
+                occId
+            )
 
         if (
             occ == null ||
             occ.status != DoseStatus.PENDING
         ) {
+
+            Log.i(
+                TAG,
+                "handleSpeak: occurrence not pending: $occId"
+            )
+
             return
         }
 
+        /**
+         * If an alarm is already active, alarm has priority.
+         */
         if (alarmOccs.isNotEmpty()) {
+
+            Log.i(
+                TAG,
+                "handleSpeak: alarm already active; skipping TTS"
+            )
+
             return
         }
 
@@ -239,6 +350,11 @@ class DoseAudioService : Service() {
                     voice = it
                 }
 
+        Log.i(
+            TAG,
+            "handleSpeak: speaking ${occ.reminderSentence()}"
+        )
+
         v.speak(
             occ.reminderSentence()
         ) {
@@ -246,8 +362,9 @@ class DoseAudioService : Service() {
             handler.post {
 
                 speechInFlight =
-                    (speechInFlight - 1)
-                        .coerceAtLeast(0)
+                    (
+                            speechInFlight - 1
+                            ).coerceAtLeast(0)
 
                 if (speechInFlight == 0) {
 
@@ -263,7 +380,9 @@ class DoseAudioService : Service() {
         }
     }
 
-    // ---------------- Step 3: alarm ----------------
+    // ==========================================================
+    // STEP 3 — ALARM
+    // ==========================================================
 
     private fun handleAlarm(
         occId: String
@@ -274,29 +393,52 @@ class DoseAudioService : Service() {
             "handleAlarm: occId=$occId"
         )
 
-        val occ = DoseStore.get(
-            this,
-            occId
-        )
+        val occ =
+            DoseStore.get(
+                this,
+                occId
+            )
 
         if (
             occ == null ||
             occ.status != DoseStatus.PENDING
         ) {
+
+            Log.i(
+                TAG,
+                "handleAlarm: occurrence is not pending"
+            )
+
             return
         }
 
+        /**
+         * Register this occurrence as actively alarming.
+         */
         alarmOccs.add(
             occId
         )
 
+        /**
+         * Alarm has priority over TTS.
+         */
         voice?.stop()
 
         speechInFlight = 0
         speakingOcc = null
 
+        handler.removeCallbacks(
+            speechTimeout
+        )
+
+        /**
+         * Start the bundled medication alarm.
+         */
         startPlayerIfNeeded()
 
+        /**
+         * Start repeating vibration.
+         */
         if (vibration == null) {
 
             vibration =
@@ -315,6 +457,9 @@ class DoseAudioService : Service() {
                 }
         }
 
+        /**
+         * Start watchdog.
+         */
         handler.removeCallbacks(
             watchdog
         )
@@ -325,72 +470,104 @@ class DoseAudioService : Service() {
         )
     }
 
+    /**
+     * Plays the bundled:
+     *
+     * app/src/main/res/raw/medication_alarm.mp3
+     *
+     * IMPORTANT:
+     * We deliberately do NOT use RingtoneManager here.
+     *
+     * That avoids Android's MediaStore permission problem:
+     *
+     * "has no access to content://media/..."
+     */
     private fun startPlayerIfNeeded() {
 
         if (player != null) {
+
+            Log.i(
+                TAG,
+                "startPlayerIfNeeded: player already running"
+            )
+
             return
         }
 
         Log.i(
             TAG,
-            "startPlayerIfNeeded: creating MediaPlayer"
+            "startPlayerIfNeeded: creating bundled alarm MediaPlayer"
         )
 
         requestFocus()
 
         try {
 
-            val uri =
-                RingtoneManager.getActualDefaultRingtoneUri(
+            /**
+             * MediaPlayer.create() loads the resource
+             * directly from the application package.
+             *
+             * No READ_MEDIA_AUDIO permission is required.
+             * No MediaStore URI is used.
+             */
+            player =
+                MediaPlayer.create(
                     this,
-                    RingtoneManager.TYPE_ALARM
+                    R.raw.medication_alarm
                 )
-                    ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+
+            if (player == null) {
+
+                throw IllegalStateException(
+                    "MediaPlayer.create() returned null"
+                )
+            }
+
+            player?.apply {
+
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(
+                            AudioAttributes.USAGE_ALARM
+                        )
+                        .setContentType(
+                            AudioAttributes.CONTENT_TYPE_SONIFICATION
+                        )
+                        .build()
+                )
+
+                /**
+                 * Repeat the 2-minute alarm file until:
+                 *
+                 * - user takes medicine
+                 * - timeout/missed stage occurs
+                 * - watchdog expires it
+                 */
+                isLooping = true
+
+                setOnErrorListener { _, what, extra ->
+
+                    Log.e(
+                        TAG,
+                        "MediaPlayer error: " +
+                                "what=$what extra=$extra"
+                    )
+
+                    handler.post {
+                        releasePlayer()
+                    }
+
+                    true
+                }
+
+                start()
+            }
 
             Log.i(
                 TAG,
-                "startPlayerIfNeeded: alarmUri=$uri"
+                "startPlayerIfNeeded: " +
+                        "bundled medication_alarm.mp3 started successfully"
             )
-
-            player =
-                MediaPlayer().apply {
-
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(
-                                AudioAttributes.USAGE_ALARM
-                            )
-                            .setContentType(
-                                AudioAttributes.CONTENT_TYPE_SONIFICATION
-                            )
-                            .build()
-                    )
-
-                    setDataSource(
-                        applicationContext,
-                        uri
-                    )
-
-                    isLooping = true
-
-                    setOnErrorListener { _, _, _ ->
-
-                        handler.post {
-                            releasePlayer()
-                        }
-
-                        true
-                    }
-
-                    prepare()
-
-                    start()
-
-                    Log.i(
-                        TAG,
-                        "startPlayerIfNeeded: MediaPlayer.start() succeeded"
-                    )
-                }
 
         } catch (e: Exception) {
 
@@ -404,7 +581,9 @@ class DoseAudioService : Service() {
         }
     }
 
-    // ---------------- Stop / cleanup ----------------
+    // ==========================================================
+    // STOP / CLEANUP
+    // ==========================================================
 
     private fun handleStop(
         occId: String?
@@ -423,7 +602,9 @@ class DoseAudioService : Service() {
 
         Log.i(
             TAG,
-            "handleStop: occId=$occId, remainingAlarms=$alarmOccs"
+            "handleStop: " +
+                    "occId=$occId, " +
+                    "remainingAlarms=$alarmOccs"
         )
 
         if (
@@ -434,10 +615,16 @@ class DoseAudioService : Service() {
             voice?.stop()
 
             speechInFlight = 0
+
             speakingOcc = null
+
+            handler.removeCallbacks(
+                speechTimeout
+            )
         }
 
         if (alarmOccs.isEmpty()) {
+
             stopPlayback()
         }
     }
@@ -465,6 +652,7 @@ class DoseAudioService : Service() {
         releasePlayer()
 
         vibration?.cancel()
+
         vibration = null
 
         handler.removeCallbacks(
@@ -476,18 +664,17 @@ class DoseAudioService : Service() {
 
     private fun releasePlayer() {
 
-        if (player != null) {
+        player?.let {
 
             Log.i(
                 TAG,
                 "releasePlayer: stopping and releasing MediaPlayer"
             )
-        }
-
-        player?.let {
 
             runCatching {
-                it.stop()
+                if (it.isPlaying) {
+                    it.stop()
+                }
             }
 
             runCatching {
@@ -497,6 +684,10 @@ class DoseAudioService : Service() {
 
         player = null
     }
+
+    // ==========================================================
+    // AUDIO FOCUS
+    // ==========================================================
 
     private fun requestFocus() {
 
@@ -530,8 +721,14 @@ class DoseAudioService : Service() {
                 .setOnAudioFocusChangeListener { }
                 .build()
 
-        am.requestAudioFocus(
-            focusRequest!!
+        val result =
+            am.requestAudioFocus(
+                focusRequest!!
+            )
+
+        Log.i(
+            TAG,
+            "requestAudioFocus: result=$result"
         )
     }
 
@@ -546,19 +743,25 @@ class DoseAudioService : Service() {
 
         focusRequest?.let {
 
-            (
-                    getSystemService(
-                        Context.AUDIO_SERVICE
-                    ) as AudioManager
-                    ).abandonAudioFocusRequest(
-                    it
-                )
+            val am =
+                getSystemService(
+                    Context.AUDIO_SERVICE
+                ) as AudioManager
+
+            am.abandonAudioFocusRequest(
+                it
+            )
         }
 
         focusRequest = null
     }
 
     override fun onDestroy() {
+
+        Log.i(
+            TAG,
+            "onDestroy: audio service stopping"
+        )
 
         isRunning = false
 
@@ -569,6 +772,7 @@ class DoseAudioService : Service() {
         stopPlayback()
 
         voice?.shutdown()
+
         voice = null
 
         super.onDestroy()

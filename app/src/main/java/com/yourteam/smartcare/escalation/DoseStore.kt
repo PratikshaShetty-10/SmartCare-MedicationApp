@@ -115,17 +115,30 @@ object DoseStore {
     }
 
     /** Picks the dose a "Take" press refers to. */
-    fun findForAck(ctx: Context, medicationId: String, nowMs: Long): DoseOccurrence? = synchronized(lock) {
-        val mine = all(ctx).filter { it.medicationId == medicationId }
-        mine.filter { it.status == DoseStatus.PENDING && it.scheduledAtMs <= nowMs }
-            .maxByOrNull { it.scheduledAtMs }
-            ?: mine.filter {
-                it.status == DoseStatus.PENDING && it.scheduledAtMs > nowMs &&
-                        it.scheduledAtMs - nowMs <= EscalationConfig.EARLY_ACK_WINDOW_MS
-            }.minByOrNull { it.scheduledAtMs }
-            ?: mine.filter {
-                it.status == DoseStatus.MISSED && nowMs - it.scheduledAtMs <= EscalationConfig.LATE_ACK_WINDOW_MS
-            }.maxByOrNull { it.scheduledAtMs }
+    fun findForAck(
+        ctx: Context,
+        medicationId: String,
+        nowMs: Long
+    ): DoseOccurrence? = synchronized(lock) {
+        val mine = all(ctx)
+            .filter { it.medicationId == medicationId }
+
+        // 1. Prefer the latest PENDING dose that has already reached
+        //    its scheduled time.
+        mine.filter {
+            it.status == DoseStatus.PENDING &&
+                    it.scheduledAtMs <= nowMs
+        }.maxByOrNull { it.scheduledAtMs }
+            ?: run {
+                // 2. Allow an early acknowledgement only for a
+                //    nearby future PENDING dose.
+                mine.filter {
+                    it.status == DoseStatus.PENDING &&
+                            it.scheduledAtMs > nowMs &&
+                            it.scheduledAtMs - nowMs <=
+                            EscalationConfig.EARLY_ACK_WINDOW_MS
+                }.minByOrNull { it.scheduledAtMs }
+            }
     }
 
     fun prune(ctx: Context, nowMs: Long) = synchronized(lock) {

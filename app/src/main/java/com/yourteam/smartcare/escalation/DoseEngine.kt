@@ -279,42 +279,91 @@ object DoseAcknowledger {
         )
 
         if (occ == null) {
-            // No tracked occurrence.
-            //
-            // Example:
-            // extra dose or schedule has not been synced yet.
-            //
-            // Still record today's scheduled dose if possible.
             val med = DoseStore.loadSchedule(ctx)
                 .firstOrNull {
                     it.medicationId == medicationId
                 }
                 ?: return false
 
-            val at = EscalationScheduler.scheduledTodayMs(med)
+            val scheduledAt = EscalationScheduler.scheduledTodayMs(med)
                 ?: return false
+
+            val timeoutAt =
+                scheduledAt +
+                        EscalationConfig.offsetMs(
+                            EscalationConfig.STAGE_TIMEOUT
+                        )
+
+            // The scheduled dose has already timed out.
+            // Do NOT allow a late click to become TAKEN.
+            if (now >= timeoutAt) {
+                Log.i(
+                    TAG,
+                    "ACK rejected: dose already timed out " +
+                            "medication=$medicationId scheduledAt=$scheduledAt"
+                )
+                return false
+            }
+
+            // The occurrence was not locally cached, but the dose is
+            // still inside its valid acknowledgement window.
+            val newOccurrence = DoseOccurrence(
+                id = DoseStore.occurrenceId(
+                    medicationId,
+                    scheduledAt
+                ),
+                medicationId = medicationId,
+                medName = med.medName,
+                dosage = med.dosage,
+                elderName = DoseStore.loadElderName(ctx),
+                scheduledAtMs = scheduledAt,
+                status = DoseStatus.PENDING
+            )
+
+            DoseStore.putIfAbsent(
+                ctx,
+                newOccurrence
+            )
+
+            if (!DoseStore.transition(
+                    ctx,
+                    newOccurrence.id,
+                    setOf(DoseStatus.PENDING),
+                    DoseStatus.TAKEN
+                )
+            ) {
+                return false
+            }
+
+            Log.i(
+                TAG,
+                "TAKEN occ=${newOccurrence.id}"
+            )
 
             DoseSync.enqueueAck(
                 ctx,
                 medicationId,
-                at,
+                scheduledAt,
                 now
             )
 
             return true
         }
 
-        // Only PENDING or MISSED doses can be acknowledged.
+        // Only PENDING doses can be acknowledged.
+// Once the timeout changes the occurrence to MISSED,
+// that dose is final and cannot become TAKEN.
         if (!DoseStore.transition(
                 ctx,
                 occ.id,
-                setOf(
-                    DoseStatus.PENDING,
-                    DoseStatus.MISSED
-                ),
+                setOf(DoseStatus.PENDING),
                 DoseStatus.TAKEN
             )
         ) {
+            Log.i(
+                TAG,
+                "ACK rejected because occurrence is no longer PENDING: ${occ.id}"
+            )
             return false
         }
 

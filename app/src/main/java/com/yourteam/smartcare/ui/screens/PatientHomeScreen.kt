@@ -24,6 +24,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.data.model.Profile
+import com.yourteam.smartcare.escalation.DoseStatus
+import com.yourteam.smartcare.escalation.DoseStore
+import com.yourteam.smartcare.escalation.EscalationScheduler
 import com.yourteam.smartcare.ui.components.EmergencySosButton
 import com.yourteam.smartcare.ui.MedicationViewModel
 import com.yourteam.smartcare.ui.MedicationUiState
@@ -221,14 +224,46 @@ fun PatientHomeScreen(
                         )
                     } else {
                         state.medications.forEach { med ->
+
+                            val doseStatus =
+                                med.id?.let { medicationId ->
+
+                                    val scheduledAtMs =
+                                        EscalationScheduler.scheduledTodayMs(
+                                            com.yourteam.smartcare.escalation.ScheduledMed(
+                                                medicationId = medicationId,
+                                                medName = med.medName,
+                                                dosage = med.dosage,
+                                                time = med.scheduledTime
+                                            )
+                                        )
+
+                                    scheduledAtMs?.let { scheduledTimeMs ->
+                                        val occurrenceId =
+                                            DoseStore.occurrenceId(
+                                                medicationId,
+                                                scheduledTimeMs
+                                            )
+
+                                        DoseStore.get(
+                                            context,
+                                            occurrenceId
+                                        )?.status ?: DoseStatus.PENDING
+                                    } ?: DoseStatus.PENDING
+
+                                } ?: DoseStatus.PENDING
+
                             PatientScheduleItem(
                                 medName = med.medName,
                                 dosage = med.dosage,
                                 time = med.scheduledTime,
-                                isTaken = med.isTaken,
+                                doseStatus = doseStatus,
                                 onMarkAsTaken = {
                                     med.id?.let { medId ->
-                                        medViewModel.markAsTaken(medId, context)
+                                        medViewModel.markAsTaken(
+                                            medId,
+                                            context
+                                        )
                                     }
                                 }
                             )
@@ -274,7 +309,7 @@ fun PatientScheduleItem(
     medName: String,
     dosage: String,
     time: String,
-    isTaken: Boolean,
+    doseStatus: String,
     onMarkAsTaken: () -> Unit
 ) {
     ElevatedCard(
@@ -307,24 +342,63 @@ fun PatientScheduleItem(
                 )
             }
 
-            if (isTaken) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Taken",
-                        tint = Color(0xFF2E7D32),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Taken", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            when (doseStatus) {
+
+                DoseStatus.TAKEN -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "Taken",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Text(
+                            "Taken",
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
-            } else {
-                OutlinedButton(
-                    onClick = onMarkAsTaken,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("Take", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+                DoseStatus.MISSED -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Missed",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Text(
+                            "Missed",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+
+                else -> {
+                    OutlinedButton(
+                        onClick = onMarkAsTaken,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = 16.dp,
+                            vertical = 8.dp
+                        )
+                    ) {
+                        Text(
+                            "Take",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
