@@ -43,6 +43,12 @@ android {
             "SUPABASE_KEY",
             "\"${secretProperties.getProperty("SUPABASE_KEY") ?: ""}\""
         )
+
+        buildConfigField(
+            "String",
+            "GEOAPIFY_API_KEY",
+            "\"${secretProperties.getProperty("GEOAPIFY_API_KEY") ?: ""}\""
+        )
     }
 
     buildTypes {
