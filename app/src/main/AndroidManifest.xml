@@ -50,20 +50,18 @@
     <!-- Required by existing SOS/location foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!-- Required by SOS alarm/audio service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
     <!-- ========================================================= -->
     <!-- MEDICATION ESCALATION PERMISSIONS                         -->
     <!-- ========================================================= -->
-
-    <!-- Required by DoseAudioService -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- Required for medication vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Required so medication alarms can be recovered after reboot -->
-    <uses-permission
-        android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
         Exact alarms are used by EscalationScheduler.
@@ -104,8 +102,42 @@
 
         </activity>
 
+
+        <!-- ===================================================== -->
+        <!-- MEDICATION POPUP                                      -->
+        <!-- ===================================================== -->
+
         <activity
             android:name=".escalation.DosePopupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SmartCare" />
+
+
+        <!-- ===================================================== -->
+        <!-- MANUAL SOS SERVICE                                    -->
+        <!-- ===================================================== -->
+
+        <!--
+            Manual SOS service.
+
+            Handles:
+            - loud SOS siren
+            - foreground SOS notification
+            - Elder location access
+            - SOS fullscreen popup
+        -->
+        <service
+            android:name=".notifications.services.SosService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback|location" />
+
+
+        <!-- ===================================================== -->
+        <!-- SOS FULLSCREEN POPUP                                  -->
+        <!-- ===================================================== -->
+
+        <activity
+            android:name=".notifications.service.SosPopupActivity"
             android:exported="false"
             android:theme="@style/Theme.SmartCare" />
 
@@ -115,9 +147,9 @@
         <!-- ===================================================== -->
 
         <!--
-            Existing service.
-            KEEP location foreground-service type because this
-            belongs to the existing SOS/location functionality.
+            Existing automatic emergency receiver service.
+            KEEP this unchanged because it belongs to the
+            existing emergency/escalation functionality.
         -->
         <service
             android:name=".emergency.services.EscalationForegroundService"
@@ -132,7 +164,7 @@
 
 
         <!-- ===================================================== -->
-        <!-- NEW MEDICATION ESCALATION                             -->
+        <!-- MEDICATION ESCALATION                                 -->
         <!-- ===================================================== -->
 
         <!--

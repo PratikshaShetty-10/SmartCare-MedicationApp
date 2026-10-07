@@ -5,6 +5,7 @@ import com.yourteam.smartcare.utils.supabase
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.Serializable
 
+
 @Serializable
 data class MedicationModel(val id: Int, val name: String, val stockCount: Int)
 

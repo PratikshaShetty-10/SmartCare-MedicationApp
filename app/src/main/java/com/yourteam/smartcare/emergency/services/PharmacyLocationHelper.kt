@@ -52,6 +52,12 @@ object PharmacyLocationHelper {
                 ).addOnSuccessListener { location ->
 
                     if (location != null) {
+                        println(
+                            "PHARMACY_LOCATION: " +
+                                    "lat=${location.latitude}, " +
+                                    "lng=${location.longitude}, " +
+                                    "accuracy=${location.accuracy}m"
+                        )
                         continuation.resume(
                             PharmacyLocationResult.Success(
                                 latitude = location.latitude,

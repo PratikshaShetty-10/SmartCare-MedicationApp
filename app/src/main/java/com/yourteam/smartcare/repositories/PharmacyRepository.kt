@@ -64,7 +64,7 @@ class PharmacyRepository {
     suspend fun findNearbyPharmacies(
         lat: Double,
         lng: Double,
-        radius: Int = 5000
+        radius: Int = 10000
     ): Result<List<Pharmacy>> {
 
         val apiKey = BuildConfig.GEOAPIFY_API_KEY

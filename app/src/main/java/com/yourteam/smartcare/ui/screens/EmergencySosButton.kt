@@ -19,6 +19,8 @@ import com.yourteam.smartcare.api.GuardianNotifier
 import com.yourteam.smartcare.ui.screens.SosViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.content.Intent
+import com.yourteam.smartcare.notifications.services.SosService
 
 @Composable
 fun EmergencySosButton(
@@ -45,7 +47,15 @@ fun EmergencySosButton(
     fun sendSilentSosToGuardian() {
         buttonState = SosButtonState.SENDING
 
-        // 🚨 NEW: Fire the Firebase Push Notification over the internet!
+        // 🚨 Start the local SOS siren + popup
+        try {
+            val sosIntent = Intent(context, SosService::class.java)
+            ContextCompat.startForegroundService(context, sosIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Keep the existing Firebase Push Notification
         viewModel.triggerSosAlert(context)
 
         // Keep your existing SMS / GPS logic running at the same time
