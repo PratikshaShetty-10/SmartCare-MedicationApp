@@ -25,6 +25,9 @@ import com.yourteam.smartcare.escalation.DoseStatus
 import com.yourteam.smartcare.escalation.DoseStore
 import com.yourteam.smartcare.escalation.EscalationScheduler
 import com.yourteam.smartcare.escalation.ScheduledMed
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +48,11 @@ fun MedicationTrackerScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            navController.popBackStack()
+                        }
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
@@ -53,8 +60,10 @@ fun MedicationTrackerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor =
+                        MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor =
+                        MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
         }
@@ -91,14 +100,17 @@ fun MedicationTrackerScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment =
+                                Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "Error: ${state.message}",
                                 color = MaterialTheme.colorScheme.error
                             )
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
 
                             Button(
                                 onClick = {
@@ -128,18 +140,23 @@ fun MedicationTrackerScreen(
                     } else {
 
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement =
+                                Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
 
                             items(
                                 state.medications,
-                                key = { it.id ?: it.medName }
+                                key = {
+                                    it.id ?: it.medName
+                                }
                             ) { med ->
 
                                 // Local stock state for instant UI update
                                 var currentStockLocal by remember(med.id) {
-                                    mutableStateOf(med.currentStock)
+                                    mutableStateOf(
+                                        med.currentStock
+                                    )
                                 }
 
                                 // Read today's occurrence status
@@ -147,16 +164,22 @@ fun MedicationTrackerScreen(
                                     med.id?.let { medicationId ->
 
                                         val scheduledAtMs =
-                                            EscalationScheduler.scheduledTodayMs(
-                                                ScheduledMed(
-                                                    medicationId = medicationId,
-                                                    medName = med.medName,
-                                                    dosage = med.dosage,
-                                                    time = med.scheduledTime
+                                            EscalationScheduler
+                                                .scheduledTodayMs(
+                                                    ScheduledMed(
+                                                        medicationId =
+                                                            medicationId,
+                                                        medName =
+                                                            med.medName,
+                                                        dosage =
+                                                            med.dosage,
+                                                        time =
+                                                            med.scheduledTime
+                                                    )
                                                 )
-                                            )
 
-                                        scheduledAtMs?.let { scheduledTimeMs ->
+                                        scheduledAtMs?.let {
+                                                scheduledTimeMs ->
 
                                             val occurrenceId =
                                                 DoseStore.occurrenceId(
@@ -167,26 +190,63 @@ fun MedicationTrackerScreen(
                                             DoseStore.get(
                                                 context,
                                                 occurrenceId
-                                            )?.status ?: DoseStatus.PENDING
+                                            )?.status
+                                                ?: DoseStatus.PENDING
 
                                         } ?: DoseStatus.PENDING
 
                                     } ?: DoseStatus.PENDING
 
+                                /*
+                                 * Convert backend HH:mm:ss format
+                                 * into viewer-friendly 12-hour format.
+                                 *
+                                 * Examples:
+                                 * 08:05:00 -> 8:05 AM
+                                 * 12:05:00 -> 12:05 PM
+                                 * 14:05:00 -> 2:05 PM
+                                 * 16:07:00 -> 4:07 PM
+                                 * 20:05:00 -> 8:05 PM
+                                 */
+                                val displayTime = remember(
+                                    med.scheduledTime
+                                ) {
+                                    runCatching {
+                                        LocalTime.parse(
+                                            med.scheduledTime
+                                        ).format(
+                                            DateTimeFormatter.ofPattern(
+                                                "h:mm a",
+                                                Locale.getDefault()
+                                            )
+                                        )
+                                    }.getOrElse {
+                                        // Fall back to the original
+                                        // value if parsing fails.
+                                        med.scheduledTime
+                                    }
+                                }
+
                                 Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor =
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                    )
+                                    modifier =
+                                        Modifier.fillMaxWidth(),
+                                    shape =
+                                        RoundedCornerShape(12.dp),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .surfaceVariant
+                                        )
                                 ) {
 
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                        verticalAlignment =
+                                            Alignment.CenterVertically,
                                         horizontalArrangement =
                                             Arrangement.SpaceBetween
                                     ) {
@@ -196,19 +256,28 @@ fun MedicationTrackerScreen(
                                             Text(
                                                 text = med.medName,
                                                 fontSize = 18.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight =
+                                                    FontWeight.Bold
                                             )
 
                                             Text(
-                                                text = "${med.dosage} • ${med.scheduledTime}",
+                                                text =
+                                                    "${med.dosage} • $displayTime",
                                                 fontSize = 14.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color =
+                                                    MaterialTheme
+                                                        .colorScheme
+                                                        .onSurfaceVariant
                                             )
 
                                             Text(
-                                                text = "Stock: $currentStockLocal left",
+                                                text =
+                                                    "Stock: $currentStockLocal left",
                                                 fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.outline
+                                                color =
+                                                    MaterialTheme
+                                                        .colorScheme
+                                                        .outline
                                             )
                                         }
 
@@ -218,26 +287,39 @@ fun MedicationTrackerScreen(
                                             DoseStatus.TAKEN -> {
                                                 Row(
                                                     verticalAlignment =
-                                                        Alignment.CenterVertically
+                                                        Alignment
+                                                            .CenterVertically
                                                 ) {
+
                                                     Icon(
                                                         imageVector =
-                                                            Icons.Default.CheckCircle,
-                                                        contentDescription = "Taken",
-                                                        tint = Color(0xFF2E7D32)
+                                                            Icons.Default
+                                                                .CheckCircle,
+                                                        contentDescription =
+                                                            "Taken",
+                                                        tint =
+                                                            Color(
+                                                                0xFF2E7D32
+                                                            )
                                                     )
 
                                                     Spacer(
                                                         modifier =
-                                                            Modifier.width(4.dp)
+                                                            Modifier.width(
+                                                                4.dp
+                                                            )
                                                     )
 
                                                     Text(
                                                         text = "Taken",
-                                                        color = Color(0xFF2E7D32),
+                                                        color =
+                                                            Color(
+                                                                0xFF2E7D32
+                                                            ),
                                                         fontWeight =
                                                             FontWeight.Bold,
-                                                        fontSize = 14.sp
+                                                        fontSize =
+                                                            14.sp
                                                     )
                                                 }
                                             }
@@ -246,7 +328,9 @@ fun MedicationTrackerScreen(
                                                 Text(
                                                     text = "Missed",
                                                     color =
-                                                        MaterialTheme.colorScheme.error,
+                                                        MaterialTheme
+                                                            .colorScheme
+                                                            .error,
                                                     fontWeight =
                                                         FontWeight.Bold,
                                                     fontSize = 14.sp
@@ -268,11 +352,14 @@ fun MedicationTrackerScreen(
                                                 ) {
                                                     Icon(
                                                         imageVector =
-                                                            Icons.Default.RadioButtonUnchecked,
+                                                            Icons.Default
+                                                                .RadioButtonUnchecked,
                                                         contentDescription =
                                                             "Mark Taken",
                                                         tint =
-                                                            MaterialTheme.colorScheme.primary
+                                                            MaterialTheme
+                                                                .colorScheme
+                                                                .primary
                                                     )
                                                 }
                                             }

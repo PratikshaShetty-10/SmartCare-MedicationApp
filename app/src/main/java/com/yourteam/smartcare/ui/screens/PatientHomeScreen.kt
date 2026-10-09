@@ -32,6 +32,9 @@ import com.yourteam.smartcare.ui.MedicationViewModel
 import com.yourteam.smartcare.ui.MedicationUiState
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,15 +92,24 @@ fun PatientHomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SmartCare", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "SmartCare",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 actions = {
                     IconButton(onClick = onLogoutClick) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Log Out")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Log Out"
+                        )
                     }
                 }
             )
         }
     ) { innerPadding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -106,6 +118,7 @@ fun PatientHomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // 1. Welcome Header
@@ -119,6 +132,7 @@ fun PatientHomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+
                 Text(
                     text = "Guardian Connected • Monitored",
                     fontSize = 14.sp,
@@ -132,8 +146,13 @@ fun PatientHomeScreen(
             // 2. Overdose Warning Banner
             if (overdoseWarning) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    colors = CardDefaults.cardColors(
+                        containerColor =
+                            MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -142,19 +161,25 @@ fun PatientHomeScreen(
                         Icon(
                             Icons.Default.Warning,
                             contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.onErrorContainer
+                            tint =
+                                MaterialTheme.colorScheme.onErrorContainer
                         )
+
                         Spacer(modifier = Modifier.width(12.dp))
+
                         Column {
                             Text(
                                 "Medication Mismatch Detected",
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color =
+                                    MaterialTheme.colorScheme.onErrorContainer
                             )
+
                             Text(
                                 "Your last pill scan did not match your schedule. Guardian notified.",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color =
+                                    MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
                     }
@@ -177,12 +202,14 @@ fun PatientHomeScreen(
                     onClick = onScanLabelClick,
                     modifier = Modifier.weight(1f)
                 )
+
                 QuickActionButton(
                     text = "Pharmacies",
                     icon = Icons.Default.LocalPharmacy,
                     onClick = onPharmacyClick,
                     modifier = Modifier.weight(1f)
                 )
+
                 QuickActionButton(
                     text = "Med Log",
                     icon = Icons.Default.Medication,
@@ -205,9 +232,13 @@ fun PatientHomeScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             when (val state = uiState) {
+
                 is MedicationUiState.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(16.dp)
+                    )
                 }
+
                 is MedicationUiState.Error -> {
                     Text(
                         text = "Error loading schedule: ${state.message}",
@@ -215,14 +246,19 @@ fun PatientHomeScreen(
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
                 }
+
                 is MedicationUiState.Success -> {
+
                     if (state.medications.isEmpty()) {
+
                         Text(
                             text = "You are all caught up for today!",
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(vertical = 16.dp)
                         )
+
                     } else {
+
                         state.medications.forEach { med ->
 
                             val doseStatus =
@@ -239,6 +275,7 @@ fun PatientHomeScreen(
                                         )
 
                                     scheduledAtMs?.let { scheduledTimeMs ->
+
                                         val occurrenceId =
                                             DoseStore.occurrenceId(
                                                 medicationId,
@@ -249,6 +286,7 @@ fun PatientHomeScreen(
                                             context,
                                             occurrenceId
                                         )?.status ?: DoseStatus.PENDING
+
                                     } ?: DoseStatus.PENDING
 
                                 } ?: DoseStatus.PENDING
@@ -277,7 +315,11 @@ fun PatientHomeScreen(
     }
 }
 
-// Custom button for the 3-grid layout
+
+// -----------------------------------------------------------------------------
+// QUICK ACTION BUTTON
+// -----------------------------------------------------------------------------
+
 @Composable
 fun QuickActionButton(
     text: String,
@@ -289,21 +331,37 @@ fun QuickActionButton(
         onClick = onClick,
         modifier = modifier.height(80.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = text, tint = MaterialTheme.colorScheme.primary)
+            Icon(
+                icon,
+                contentDescription = text,
+                tint = MaterialTheme.colorScheme.primary
+            )
+
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+            Text(
+                text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
 
-// Lightened Schedule Item
+
+// -----------------------------------------------------------------------------
+// PATIENT SCHEDULE ITEM
+// -----------------------------------------------------------------------------
+
 @Composable
 fun PatientScheduleItem(
     medName: String,
@@ -312,28 +370,64 @@ fun PatientScheduleItem(
     doseStatus: String,
     onMarkAsTaken: () -> Unit
 ) {
+
+    // Convert backend HH:mm:ss into viewer-friendly 12-hour format.
+    // Example:
+    // 08:05:00 -> 8:05 AM
+    // 14:05:00 -> 2:05 PM
+    // 16:07:00 -> 4:07 PM
+    // 20:05:00 -> 8:05 PM
+    val displayTime = remember(time) {
+        runCatching {
+            LocalTime.parse(time)
+                .format(
+                    DateTimeFormatter.ofPattern(
+                        "h:mm a",
+                        Locale.getDefault()
+                    )
+                )
+        }.getOrElse {
+            // If parsing somehow fails, show the original value
+            // instead of causing the UI to crash.
+            time
+        }
+    }
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 2.dp
+        )
     ) {
+
         Row(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement =
+                Arrangement.SpaceBetween,
+            verticalAlignment =
+                Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+
                 Text(
-                    text = time,
+                    text = displayTime,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
+
                 Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
                     text = "$medName ($dosage)",
                     fontWeight = FontWeight.Medium,
@@ -345,7 +439,11 @@ fun PatientScheduleItem(
             when (doseStatus) {
 
                 DoseStatus.TAKEN -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = "Taken",
@@ -365,7 +463,11 @@ fun PatientScheduleItem(
                 }
 
                 DoseStatus.MISSED -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
                         Icon(
                             Icons.Default.Warning,
                             contentDescription = "Missed",
