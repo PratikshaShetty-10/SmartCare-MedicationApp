@@ -1,3 +1,4 @@
+
 package com.yourteam.smartcare.ui
 
 import android.content.Context
@@ -11,6 +12,7 @@ import com.yourteam.smartcare.data.SupabaseClient
 import com.yourteam.smartcare.data.model.AdherenceLog
 import com.yourteam.smartcare.data.model.Medication
 import com.yourteam.smartcare.data.model.Relationship
+import com.yourteam.smartcare.data.model.VerificationLog
 import com.yourteam.smartcare.data.repository.MedicationRepository
 import com.yourteam.smartcare.escalation.DoseAcknowledger
 import io.github.jan.supabase.auth.auth
@@ -60,7 +62,6 @@ sealed interface MedicationUiState {
     ) : MedicationUiState
 }
 
-
 sealed interface AdherenceReportUiState {
     object Loading : AdherenceReportUiState
 
@@ -73,7 +74,21 @@ sealed interface AdherenceReportUiState {
     ) : AdherenceReportUiState
 }
 
+/**
+ * Separate state for the weekly medication scan report.
+ * Does not affect the existing daily adherence report.
+ */
+sealed interface VerificationReportUiState {
+    object Loading : VerificationReportUiState
 
+    data class Success(
+        val logs: List<VerificationLog>
+    ) : VerificationReportUiState
+
+    data class Error(
+        val message: String
+    ) : VerificationReportUiState
+}
 
 class MedicationViewModel : ViewModel() {
 
@@ -88,8 +103,6 @@ class MedicationViewModel : ViewModel() {
     val uiState: StateFlow<MedicationUiState> =
         _uiState.asStateFlow()
 
-
-
     // --- P7 Adherence Report State ---
     private val _adherenceReportState =
         MutableStateFlow<AdherenceReportUiState>(
@@ -98,6 +111,15 @@ class MedicationViewModel : ViewModel() {
 
     val adherenceReportState: StateFlow<AdherenceReportUiState> =
         _adherenceReportState.asStateFlow()
+
+    // --- Weekly Medication Scan Report State ---
+    private val _verificationReportState =
+        MutableStateFlow<VerificationReportUiState>(
+            VerificationReportUiState.Loading
+        )
+
+    val verificationReportState: StateFlow<VerificationReportUiState> =
+        _verificationReportState.asStateFlow()
 
     // --- Emergency Tracking State ---
     private val _activeEmergency =
@@ -190,7 +212,6 @@ class MedicationViewModel : ViewModel() {
                     _notifications.value.filter {
                         it.id != notificationId
                     }
-
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -200,7 +221,6 @@ class MedicationViewModel : ViewModel() {
     fun dismissEmergency() {
         _activeEmergency.value = null
     }
-
 
     // --- P7: Load Guardian Adherence Report ---
     fun loadAdherenceReport() {
@@ -213,7 +233,6 @@ class MedicationViewModel : ViewModel() {
 
                 _adherenceReportState.value =
                     AdherenceReportUiState.Success(logs)
-
             } catch (e: Exception) {
                 Log.e(
                     "MedVM",
@@ -230,10 +249,44 @@ class MedicationViewModel : ViewModel() {
         }
     }
 
+    // --- Weekly Medication Scan Report ---
+    // Read-only: fetches existing verification_logs.
+    // Does not alter scan data or adherence records.
+    fun loadVerificationLogs() {
+        viewModelScope.launch {
+            _verificationReportState.value =
+                VerificationReportUiState.Loading
+
+            try {
+                val logs = repository.getVerificationLogs()
+
+                _verificationReportState.value =
+                    VerificationReportUiState.Success(logs)
+
+                Log.d(
+                    "MedVM",
+                    "Loaded ${logs.size} verification logs for weekly report."
+                )
+            } catch (e: Exception) {
+                Log.e(
+                    "MedVM",
+                    "Failed to load verification logs: ${e.localizedMessage}",
+                    e
+                )
+
+                _verificationReportState.value =
+                    VerificationReportUiState.Error(
+                        e.localizedMessage
+                            ?: "Failed to load medication scan history."
+                    )
+            }
+        }
+    }
+
     // --- Fetch medication schedule ---
     //
     // IMPORTANT:
-    // Medication alarms are now handled by EscalationScheduler.
+    // Medication alarms are handled by EscalationScheduler.
     // Do NOT use MedicationReminderManager here because that would
     // create a second/duplicate medication escalation system.
     fun fetchTodaySchedule(context: Context? = null) {
@@ -245,7 +298,6 @@ class MedicationViewModel : ViewModel() {
 
                 _uiState.value =
                     MedicationUiState.Success(schedule)
-
             } catch (e: Exception) {
                 _uiState.value =
                     MedicationUiState.Error(
@@ -297,7 +349,6 @@ class MedicationViewModel : ViewModel() {
                     "MedVM",
                     "Notification sent successfully to guardian: $guardianId"
                 )
-
             } catch (e: Exception) {
                 Log.e(
                     "MedVM",
@@ -394,12 +445,11 @@ class MedicationViewModel : ViewModel() {
                 /*
                  * Immediately notify the Elder device.
                  *
-                 * The Elder will receive a data-only FCM and trigger
+                 * The Elder receives a data-only FCM and triggers
                  * ScheduleSync.enqueueNow().
                  *
-                 * If FCM fails, the medication is still successfully
-                 * saved. The existing 15-minute periodic sync remains
-                 * the fallback.
+                 * If FCM fails, the medication remains saved.
+                 * The existing periodic sync is the fallback.
                  */
                 val notificationSent =
                     medicationScheduleNotifier.notifyElder(
@@ -414,7 +464,6 @@ class MedicationViewModel : ViewModel() {
                 fetchTodaySchedule(context)
 
                 onSuccess()
-
             } catch (e: Exception) {
                 Log.e(
                     "MedVM",
@@ -437,7 +486,6 @@ class MedicationViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
-
                 /*
                  * NEW MEDICATION ESCALATION SYSTEM
                  *
@@ -452,11 +500,10 @@ class MedicationViewModel : ViewModel() {
                  * - syncing TAKEN through ack_dose
                  *
                  * We intentionally do NOT call:
-                 *
                  * repository.recordAdherence(...)
                  *
-                 * because ack_dose is responsible for writing the
-                 * TAKEN adherence record.
+                 * ack_dose is responsible for writing the TAKEN
+                 * adherence record.
                  */
 
                 val appContext =
@@ -470,7 +517,6 @@ class MedicationViewModel : ViewModel() {
                 val currentState = _uiState.value
 
                 if (currentState is MedicationUiState.Success) {
-
                     val medToUpdate =
                         currentState.medications.find {
                             it.id == medicationId
@@ -493,10 +539,9 @@ class MedicationViewModel : ViewModel() {
                      * medications = persistent prescription
                      * DoseOccurrence = today's dose state
                      *
-                     * DoseAcknowledger has already marked today's
-                     * DoseOccurrence as TAKEN and synced the adherence
-                     * record. Only stock belongs to the permanent
-                     * medication row here.
+                     * DoseAcknowledger already marked today's
+                     * DoseOccurrence as TAKEN and synced adherence.
+                     * Only stock belongs to the permanent row here.
                      */
                     SupabaseClient.client
                         .from("medications")
@@ -511,14 +556,10 @@ class MedicationViewModel : ViewModel() {
                         }
                 }
 
-                // Refresh medication schedule.
-                //
-                // This only refreshes the UI data.
-                // It does NOT schedule the old MedicationReminderManager.
+                // Refresh medication schedule data only.
+                // Does not schedule MedicationReminderManager.
                 fetchTodaySchedule(context)
-
             } catch (e: Exception) {
-
                 Log.e(
                     "MedVM",
                     "Failed to mark medication as taken: ${e.localizedMessage}",
@@ -540,7 +581,6 @@ class MedicationViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
-
                 /*
                  * Get the medication first so we know which Elder
                  * must receive the schedule update.
@@ -587,7 +627,6 @@ class MedicationViewModel : ViewModel() {
 
                 /*
                  * Immediately tell the Elder to refresh the schedule.
-                 *
                  * If FCM fails, the existing periodic ScheduleSync
                  * remains the fallback.
                  */
@@ -602,9 +641,7 @@ class MedicationViewModel : ViewModel() {
                 )
 
                 fetchTodaySchedule(context)
-
             } catch (e: Exception) {
-
                 Log.e(
                     "MedVM",
                     "Failed to delete medication: ${e.localizedMessage}",
@@ -630,7 +667,6 @@ class MedicationViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
-
                 /*
                  * Get the medication first so we know which Elder
                  * must receive the schedule update.
@@ -718,9 +754,7 @@ class MedicationViewModel : ViewModel() {
                 )
 
                 fetchTodaySchedule(context)
-
             } catch (e: Exception) {
-
                 Log.e(
                     "MedVM",
                     "Failed to update medication: ${e.localizedMessage}",

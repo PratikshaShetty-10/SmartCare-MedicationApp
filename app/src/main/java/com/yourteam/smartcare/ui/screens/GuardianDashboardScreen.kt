@@ -394,6 +394,20 @@ fun GuardianDashboardScreen(
                                         "View Adherence Report"
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        navController.navigate(
+                                            Screen.WeeklyMedicationReport.route
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("View Weekly Medication Report")
+                                }
+
                             }
                         }
 

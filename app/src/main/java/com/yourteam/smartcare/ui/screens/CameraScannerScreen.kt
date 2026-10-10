@@ -10,22 +10,27 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,9 +41,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +69,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
+import com.yourteam.smartcare.BuildConfig
+import com.yourteam.smartcare.YoloOnnxDetector
+import com.yourteam.smartcare.data.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,13 +84,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
-
-// IMPORT YOUR BUILD CONFIG HERE
-import com.yourteam.smartcare.BuildConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,41 +94,204 @@ fun CameraScannerScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
 
     var hasCameraPermission by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        hasCameraPermission = granted
-    }
+    val permissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            hasCameraPermission = granted
+        }
 
-    // --- UI STATE VARIABLES ---
-    var scannedResult by remember { mutableStateOf("Hold steady to scan tablet") }
+    // General UI state
+    var scannedResult by remember {
+        mutableStateOf("Position the medicine inside the guide")
+    }
     var isScanning by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
 
-    // YOLO Edit States
-    var editableCount by remember { mutableStateOf("") }
-    var editableOcrText by remember { mutableStateOf("") }
-    var editableScanDate by remember { mutableStateOf("") }
-    var showConfirmationUI by remember { mutableStateOf(false) }
+    // Original YOLO predictions. Do not modify these when the elder edits counts.
+    var filledTabletCount by remember { mutableStateOf(0) }
+    var brokenTabletCount by remember { mutableStateOf(0) }
+    var emptyPocketCount by remember { mutableStateOf(0) }
 
-    // Supabase Dropdown States
-    var medicationList by remember { mutableStateOf<List<Medication>>(emptyList()) }
-    var selectedMedication by remember { mutableStateOf<Medication?>(null) }
-    var isDropdownExpanded by remember { mutableStateOf(false) }
+    // Scan result state
+    var annotatedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showConfirmationUI by remember { mutableStateOf(false) }
+    var showSaveConfirmationDialog by remember { mutableStateOf(false) }
+
+    // Elder-confirmed editable counts
+    var editableCount by remember { mutableStateOf("") }
+    var editableEmptyCount by remember { mutableStateOf("") }
+    var editableBrokenCount by remember { mutableStateOf("") }
     var editableExpectedCount by remember { mutableStateOf("") }
 
-    // Fetch Medications on Screen Load
+    // Medication state
+    var medicationList by remember {
+        mutableStateOf<List<Medication>>(emptyList())
+    }
+    var selectedMedication by remember {
+        mutableStateOf<Medication?>(null)
+    }
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        if (!hasCameraPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
 
         coroutineScope.launch(Dispatchers.IO) {
             val fetchedList = fetchMedicationsFromSupabase()
+
             withContext(Dispatchers.Main) {
                 medicationList = fetchedList
+
+
                 if (fetchedList.isNotEmpty()) {
                     selectedMedication = fetchedList[0]
-                    editableExpectedCount = fetchedList[0].expectedCount.toString()
+                    editableExpectedCount = ""
+                }
+
+            }
+        }
+    }
+
+    // Save original AI predictions and elder-confirmed counts separately.
+    val saveScan: () -> Unit = {
+        val finalCount = editableCount.toIntOrNull()
+        val finalEmpty = editableEmptyCount.toIntOrNull()
+        val finalBroken = editableBrokenCount.toIntOrNull()
+        val finalExpected = editableExpectedCount.toIntOrNull()
+        val activeMed = selectedMedication
+
+        when {
+            activeMed == null -> {
+                scannedResult = "Please select a medication."
+                showSaveConfirmationDialog = false
+            }
+
+            finalCount == null || finalCount < 0 ||
+                    finalEmpty == null || finalEmpty < 0 ||
+                    finalBroken == null || finalBroken < 0 ||
+                    finalExpected == null || finalExpected < 0 -> {
+                scannedResult =
+                    "Enter valid non-negative counts before saving."
+                showSaveConfirmationDialog = false
+            }
+
+            isSaving -> {
+                // Prevent duplicate submissions.
+            }
+
+            else -> {
+                isSaving = true
+                scannedResult = "Saving scan..."
+
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        // Use the existing authenticated Supabase session.
+                        val accessToken =
+                            SupabaseClient.client.auth
+                                .currentAccessTokenOrNull()
+                                ?: throw IllegalStateException(
+                                    "No active Supabase session. Please log in again."
+                                )
+
+                        val supabaseUrl = BuildConfig.SUPABASE_URL
+                        val anonKey = BuildConfig.SUPABASE_KEY
+                        val url =
+                            "$supabaseUrl/rest/v1/verification_logs"
+
+                        val jsonBody = JSONObject().apply {
+                            put("medication_id", activeMed.id)
+
+                            // Preserve the existing columns.
+
+                            put("expected_count", finalExpected)
+
+// Total pockets detected by the original YOLO predictions.
+                            val yoloTotal =
+                                filledTabletCount + emptyPocketCount + brokenTabletCount
+
+                            put("actual_count_yolo", yoloTotal)
+                            put("mismatch_flag", yoloTotal != finalExpected)
+
+
+                            // Original YOLO predictions.
+                            put("ai_filled_count", filledTabletCount)
+                            put("ai_empty_count", emptyPocketCount)
+                            put("ai_broken_count", brokenTabletCount)
+
+                            // Counts confirmed or corrected by the elder.
+                            put("confirmed_filled_count", finalCount)
+                            put("confirmed_empty_count", finalEmpty)
+                            put("confirmed_broken_count", finalBroken)
+
+                            // Intentionally omit:
+                            // ocr_expiry_date
+                            //
+                            // verified_at is generated by the database.
+                        }.toString()
+
+                        val requestBody = jsonBody.toRequestBody(
+                            "application/json".toMediaTypeOrNull()
+                        )
+
+                        val request = Request.Builder()
+                            .url(url)
+                            .addHeader("apikey", anonKey)
+                            .addHeader(
+                                "Authorization",
+                                "Bearer $accessToken"
+                            )
+                            .addHeader(
+                                "Content-Type",
+                                "application/json"
+                            )
+                            .addHeader("Prefer", "return=minimal")
+                            .post(requestBody)
+                            .build()
+
+                        OkHttpClient().newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                val errorBody =
+                                    response.body?.string().orEmpty()
+
+                                throw Exception(
+                                    "Supabase returned HTTP ${response.code}: " +
+                                            errorBody
+                                )
+                            }
+                        }
+
+                        withContext(Dispatchers.Main) {
+                            scannedResult = "Scan saved successfully"
+                            showConfirmationUI = false
+                            showSaveConfirmationDialog = false
+                            annotatedBitmap = null
+                            isSaving = false
+                        }
+                    } catch (e: Exception) {
+                        Log.e(
+                            "SmartCareDB",
+                            "Supabase verification save failed",
+                            e
+                        )
+
+                        withContext(Dispatchers.Main) {
+                            scannedResult =
+                                "Database save failed. Check Logcat."
+                            showSaveConfirmationDialog = false
+                            isSaving = false
+                        }
+                    }
                 }
             }
         }
@@ -130,128 +300,493 @@ fun CameraScannerScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SmartCare Scanner", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        if (showConfirmationUI) {
+                            "Scan Results"
+                        } else {
+                            "SmartCare Scanner"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(
+                        onClick = {
+                            if (showConfirmationUI) {
+                                showConfirmationUI = false
+                                showSaveConfirmationDialog = false
+                            } else {
+                                navController.popBackStack()
+                            }
+                        },
+                        enabled = !isSaving
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor =
+                        MaterialTheme.colorScheme.onSurface
                 )
             )
         }
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color.Black)
-        ) {
 
-            // Camera View
-            if (hasCameraPermission) {
-                AndroidView(
-                    factory = { ctx ->
-                        val view = PreviewView(ctx)
-                        previewView = view
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(view.surfaceProvider)
-                            }
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview)
-                            } catch (_: Exception) { }
-                        }, ContextCompat.getMainExecutor(ctx))
-                        view
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Text("Camera permission required.", color = Color.White, modifier = Modifier.align(Alignment.Center))
-            }
-
-            // Target Overlay Box
+        // SCREEN 1: CAMERA
+        if (!showConfirmationUI) {
             Box(
                 modifier = Modifier
-                    .size(width = 280.dp, height = 180.dp)
-                    .align(Alignment.Center)
-                    .border(3.dp, Color.Cyan, RoundedCornerShape(16.dp))
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(Color.Black)
             ) {
-                Text(
-                    text = "Align Blister Pack Here",
-                    color = Color.Cyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
-                )
-            }
+                if (hasCameraPermission) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val view = PreviewView(ctx)
+                            previewView = view
 
-            // Bottom UI Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .padding(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(8.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = scannedResult,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                            val cameraProviderFuture =
+                                ProcessCameraProvider.getInstance(ctx)
+
+                            cameraProviderFuture.addListener(
+                                {
+                                    val cameraProvider =
+                                        cameraProviderFuture.get()
+
+                                    val preview = Preview.Builder()
+                                        .build()
+                                        .also {
+                                            it.setSurfaceProvider(
+                                                view.surfaceProvider
+                                            )
+                                        }
+
+                                    try {
+                                        cameraProvider.unbindAll()
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "SmartCareScanner",
+                                            "Could not start camera preview",
+                                            e
+                                        )
+                                    }
+                                },
+                                ContextCompat.getMainExecutor(ctx)
+                            )
+
+                            view
+                        },
+                        modifier = Modifier.fillMaxSize()
                     )
 
-                    // --- HUMAN VERIFICATION UI ---
-                    if (showConfirmationUI) {
+                    // Blister-pack alignment guide
+                    Box(
+                        modifier = Modifier
+                            .size(width = 280.dp, height = 180.dp)
+                            .align(Alignment.Center)
+                            .border(
+                                2.dp,
+                                Color.Cyan,
+                                RoundedCornerShape(16.dp)
+                            )
+                    ) {
+                        Text(
+                            text = "Align Blister Pack Here",
+                            color = Color.Cyan,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
+                } else {
+                    Text(
+                        "Camera permission required.",
+                        color = Color.White,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+
+                // Camera controls
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(20.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor =
+                            MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = scannedResult,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Button(
+                            onClick = {
+                                val bitmap = previewView?.bitmap
+
+                                if (bitmap == null) {
+                                    scannedResult =
+                                        "Camera image not ready. Try again."
+                                    return@Button
+                                }
+
+                                if (isScanning || isSaving) {
+                                    return@Button
+                                }
+
+                                isScanning = true
+                                scannedResult = "Analyzing medicine..."
+
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    try {
+                                        val counts =
+                                            YoloOnnxDetector.detect(
+                                                context.applicationContext,
+                                                bitmap
+                                            )
+
+                                        val resultBitmap =
+                                            YoloOnnxDetector.drawDetections(
+                                                bitmap,
+                                                counts.detections
+                                            )
+
+                                        withContext(Dispatchers.Main) {
+                                            // Preserve original AI results.
+                                            filledTabletCount =
+                                                counts.filledTablets
+                                            brokenTabletCount =
+                                                counts.brokenTablets
+                                            emptyPocketCount =
+                                                counts.emptyPockets
+
+                                            // Initialize editable values
+                                            // from the original predictions.
+                                            editableCount =
+                                                counts.filledTablets.toString()
+                                            editableEmptyCount =
+                                                counts.emptyPockets.toString()
+                                            editableBrokenCount =
+                                                counts.brokenTablets.toString()
+
+                                            annotatedBitmap = resultBitmap
+                                            scannedResult =
+                                                "Review your scan results"
+                                            isScanning = false
+                                            showConfirmationUI = true
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "SmartCareScanner",
+                                            "Local YOLO inference failed",
+                                            e
+                                        )
+
+                                        withContext(Dispatchers.Main) {
+                                            isScanning = false
+                                            scannedResult =
+                                                "Scan failed: " +
+                                                        (e.message
+                                                            ?: "Unknown error")
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp),
+                            enabled = hasCameraPermission &&
+                                    !isScanning &&
+                                    !isSaving
+                        ) {
+                            if (isScanning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.size(12.dp))
+                                Text("Analyzing...")
+                            } else {
+                                Icon(
+                                    Icons.Default.PhotoCamera,
+                                    contentDescription = null
+                                )
+                                Spacer(Modifier.size(8.dp))
+                                Text("Scan Medicine")
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // SCREEN 2: RESULTS AND CONFIRMATION
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(MaterialTheme.colorScheme.background)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Review Your Medicine",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        "Check the detection image, correct any inaccurate " +
+                                "counts, and select the corresponding medication.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Annotated image
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 3.dp
+                    ),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "YOLO Detection Image",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        annotatedBitmap?.let { bitmap ->
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription =
+                                    "Annotated medicine image showing " +
+                                            "filled tablets, broken tablets, " +
+                                            "and empty pockets",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(
+                                        min = 280.dp,
+                                        max = 440.dp
+                                    )
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant,
+                                        RoundedCornerShape(12.dp)
+                                    ),
+                                contentScale = ContentScale.Fit
+                            )
+                        } ?: Text(
+                            "No scan image is available. Please scan again.",
+                            color = MaterialTheme.colorScheme.error
+                        )
+
+                        Text(
+                            "The counts below show the original AI predictions. " +
+                                    "You can correct them in the form.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Original AI predictions
+                Text(
+                    "Original AI Detection Summary",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DetectionCountCard(
+                        label = "Filled",
+                        count = filledTabletCount,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    DetectionCountCard(
+                        label = "Broken",
+                        count = brokenTabletCount,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    DetectionCountCard(
+                        label = "Empty",
+                        count = emptyPocketCount,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Editable human verification form
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            "Confirm Scan Counts",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            "Correct any AI mistakes after checking the " +
+                                    "blister pack. Your confirmed counts will be " +
+                                    "saved separately from the original predictions.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         OutlinedTextField(
                             value = editableCount,
-                            onValueChange = { editableCount = it },
-                            label = { Text("Confirm Pill Count (AI Found)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            onValueChange = { input ->
+                                if (input.isEmpty() ||
+                                    input.all { it.isDigit() }
+                                ) {
+                                    editableCount = input
+                                }
+                            },
+                            label = {
+                                Text("Confirm Filled Tablet Count")
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            singleLine = true,
+                            enabled = !isSaving,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Supabase Dropdown Menu
+                        OutlinedTextField(
+                            value = editableEmptyCount,
+                            onValueChange = { input ->
+                                if (input.isEmpty() ||
+                                    input.all { it.isDigit() }
+                                ) {
+                                    editableEmptyCount = input
+                                }
+                            },
+                            label = {
+                                Text("Confirm Empty Pocket Count")
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            singleLine = true,
+                            enabled = !isSaving,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = editableBrokenCount,
+                            onValueChange = { input ->
+                                if (input.isEmpty() ||
+                                    input.all { it.isDigit() }
+                                ) {
+                                    editableBrokenCount = input
+                                }
+                            },
+                            label = {
+                                Text("Confirm Broken Tablet Count")
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            singleLine = true,
+                            enabled = !isSaving,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Medication selection
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
-                                value = selectedMedication?.name ?: "Loading...",
-                                onValueChange = { },
-                                label = { Text("Select Medicine (AI Read: $editableOcrText)") },
+                                value = selectedMedication?.name
+                                    ?: if (medicationList.isEmpty()) {
+                                        "No medications loaded"
+                                    } else {
+                                        "Select medication"
+                                    },
+                                onValueChange = {},
+                                label = {
+                                    Text("Select Medication")
+                                },
                                 readOnly = true,
+                                singleLine = true,
+                                enabled = !isSaving,
                                 modifier = Modifier.fillMaxWidth(),
                                 trailingIcon = {
-                                    IconButton(onClick = { isDropdownExpanded = !isDropdownExpanded }) {
+                                    TextButton(
+                                        onClick = {
+                                            isDropdownExpanded =
+                                                !isDropdownExpanded
+                                        },
+                                        enabled = !isSaving
+                                    ) {
                                         Text("▼")
                                     }
                                 }
                             )
+
                             DropdownMenu(
                                 expanded = isDropdownExpanded,
-                                onDismissRequest = { isDropdownExpanded = false },
-                                modifier = Modifier.fillMaxWidth(0.8f)
+                                onDismissRequest = {
+                                    isDropdownExpanded = false
+                                },
+                                modifier = Modifier.fillMaxWidth(0.9f)
                             ) {
                                 medicationList.forEach { med ->
                                     DropdownMenuItem(
                                         text = { Text(med.name) },
                                         onClick = {
+
                                             selectedMedication = med
-                                            editableExpectedCount = med.expectedCount.toString()
+                                            editableExpectedCount = ""
                                             isDropdownExpanded = false
-                                        }
+
+                                        },
+                                        enabled = !isSaving
                                     )
                                 }
                             }
@@ -259,236 +794,367 @@ fun CameraScannerScreen(navController: NavController) {
 
                         OutlinedTextField(
                             value = editableExpectedCount,
-                            onValueChange = { editableExpectedCount = it },
-                            label = { Text("Expected Pills in THIS Strip") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            onValueChange = { input ->
+                                if (input.isEmpty() ||
+                                    input.all { it.isDigit() }
+                                ) {
+                                    editableExpectedCount = input
+                                }
+                            },
+                            label = {
+                                Text("Expected Total Pockets in This Strip")
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            singleLine = true,
+                            enabled = !isSaving,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        OutlinedTextField(
-                            value = editableScanDate,
-                            onValueChange = { editableScanDate = it },
-                            label = { Text("Date of Scan (YYYY-MM-DD)") },
-                            modifier = Modifier.fillMaxWidth()
+                        Text(
+                            "Scan time is recorded automatically when the " +
+                                    "scan is saved. Expiry-date detection has not " +
+                                    "been integrated yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Button(
                             onClick = {
-                                val finalCount = editableCount.toIntOrNull() ?: 0
-                                val finalExpected = editableExpectedCount.toIntOrNull() ?: 0
-                                val finalDate = editableScanDate
-                                val activeMed = selectedMedication
+                                val filled =
+                                    editableCount.toIntOrNull()
+                                val empty =
+                                    editableEmptyCount.toIntOrNull()
+                                val broken =
+                                    editableBrokenCount.toIntOrNull()
+                                val expected =
+                                    editableExpectedCount.toIntOrNull()
 
-                                if (activeMed == null) {
-                                    scannedResult = "❌ Wait for medications to load"
-                                    return@Button
-                                }
-
-                                scannedResult = "Saving to Database..."
-
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    try {
-                                        val supabaseUrl = BuildConfig.SUPABASE_URL
-                                        val anonKey = BuildConfig.SUPABASE_KEY
-                                        val url = "$supabaseUrl/rest/v1/verification_logs"
-
-                                        val jsonBody = JSONObject().apply {
-                                            put("medication_id", activeMed.id)
-                                            put("expected_count", finalExpected)
-                                            put("actual_count_yolo", finalCount)
-                                            put("ocr_expiry_date", finalDate)
-                                            put("mismatch_flag", finalCount != finalExpected)
-                                        }.toString()
-
-                                        val requestBody = jsonBody.toRequestBody("application/json".toMediaTypeOrNull())
-                                        val request = Request.Builder()
-                                            .url(url)
-                                            .addHeader("apikey", anonKey)
-                                            .addHeader("Authorization", "Bearer $anonKey")
-                                            .addHeader("Content-Type", "application/json")
-                                            .addHeader("Prefer", "return=minimal")
-                                            .post(requestBody)
-                                            .build()
-
-                                        val response = OkHttpClient().newCall(request).execute()
-
-                                        if (response.isSuccessful) {
-                                            withContext(Dispatchers.Main) {
-                                                scannedResult = "✅ Saved & Guardian Alerted!"
-                                                showConfirmationUI = false
-                                            }
-                                        } else {
-                                            throw Exception("Code: ${response.code}")
-                                        }
-
-                                    } catch (e: Exception) {
-                                        Log.e("SmartCareDB", "Supabase Error", e)
-                                        withContext(Dispatchers.Main) { scannedResult = "❌ Database Error." }
+                                when {
+                                    selectedMedication == null -> {
+                                        scannedResult =
+                                            "Please select a medication."
                                     }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Save & Alert Guardian")
-                        }
-                    }
 
-                    // --- CAMERA CAPTURE BUTTON ---
-                    if (!showConfirmationUI) {
-                        IconButton(
-                            onClick = {
-                                val bitmap = previewView?.bitmap
-                                if (bitmap != null && !isScanning) {
-                                    isScanning = true
-                                    scannedResult = "Analyzing with YOLO Server..."
-                                    coroutineScope.launch(Dispatchers.IO) {
-                                        val aiResponse = sendElderScanRequest(bitmap)
-                                        withContext(Dispatchers.Main) {
-                                            isScanning = false
+                                    filled == null || filled < 0 ||
+                                            empty == null || empty < 0 ||
+                                            broken == null || broken < 0 ||
+                                            expected == null || expected < 0 -> {
+                                        scannedResult =
+                                            "Enter valid non-negative counts."
+                                    }
 
-                                            if (aiResponse.error != null) {
-                                                scannedResult = aiResponse.error
-                                            } else {
-                                                scannedResult = "Review the detected data:"
-                                                editableCount = aiResponse.okPills.toString()
-                                                editableOcrText = aiResponse.ocrText
-
-                                                val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                                editableScanDate = currentDate
-
-                                                showConfirmationUI = true
-                                            }
-                                        }
+                                    else -> {
+                                        scannedResult =
+                                            "Please review your confirmed counts."
+                                        showSaveConfirmationDialog = true
                                     }
                                 }
                             },
                             modifier = Modifier
-                                .size(72.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            enabled = !isScanning && hasCameraPermission
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp),
+                            enabled = !isSaving
                         ) {
-                            if (isScanning) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(36.dp))
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.PhotoCamera,
-                                    contentDescription = "Capture",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
+                            Text("Review & Save Scan")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                showConfirmationUI = false
+                                showSaveConfirmationDialog = false
+                                annotatedBitmap = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSaving
+                        ) {
+                            Text("Scan Again")
                         }
                     }
                 }
+
+                Spacer(Modifier.size(8.dp))
             }
+        }
+    }
+
+    // Explicit confirmation before saving to Supabase.
+    if (showSaveConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSaving) {
+                    showSaveConfirmationDialog = false
+                }
+            },
+            title = {
+                Text("Confirm Scan Counts")
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Medication: " +
+                                (selectedMedication?.name ?: "Not selected")
+                    )
+
+                    Text("Original AI predictions:")
+                    Text("Filled: $filledTabletCount")
+                    Text("Empty: $emptyPocketCount")
+                    Text("Broken: $brokenTabletCount")
+
+                    Text("Your confirmed counts:")
+                    Text("Filled: ${editableCount.ifBlank { "Not entered" }}")
+                    Text(
+                        "Empty: ${
+                            editableEmptyCount.ifBlank { "Not entered" }
+                        }"
+                    )
+                    Text(
+                        "Broken: ${
+                            editableBrokenCount.ifBlank { "Not entered" }
+                        }"
+                    )
+
+                    Text(
+                        "Expected count: " +
+                                editableExpectedCount.ifBlank { "Not entered" }
+                    )
+
+                    Text(
+                        "Check the counts before saving. The expiry date " +
+                                "will remain unset until OCR is implemented."
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = saveScan,
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        Text("Saving...")
+                    } else {
+                        Text("Confirm & Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        if (!isSaving) {
+                            showSaveConfirmationDialog = false
+                        }
+                    },
+                    enabled = !isSaving
+                ) {
+                    Text("Review Again")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DetectionCountCard(
+    label: String,
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                count.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
 
-// --- DATA CLASSES ---
-data class AIResponse(
-    val okPills: Int = 0,
-    val ocrText: String = "",
-    val error: String? = null
-)
-
+// Medication used by this scanner screen.
 data class Medication(
     val id: String,
     val name: String,
     val expectedCount: Int
 )
 
-// --- SUPABASE FETCH NETWORK LOGIC ---
+// Fetch only the logged-in user's medications from Supabase.
 private fun fetchMedicationsFromSupabase(): List<Medication> {
     return try {
+        val auth = SupabaseClient.client.auth
+
+        // Identify the currently authenticated user.
+        val elderId = auth.currentUserOrNull()?.id
+            ?: throw IllegalStateException(
+                "No logged-in user found. Please log in again."
+            )
+
+        // Use the active user's access token, not the anon key,
+        // for the Authorization header.
+        val accessToken = auth.currentAccessTokenOrNull()
+            ?: throw IllegalStateException(
+                "No active Supabase session. Please log in again."
+            )
+
         val supabaseUrl = BuildConfig.SUPABASE_URL
         val anonKey = BuildConfig.SUPABASE_KEY
 
-        // 🚨 CHANGED: select=* grabs ALL columns so it doesn't crash on name mismatch
-        val url = "$supabaseUrl/rest/v1/medications?select=*"
+        // Filter the results to the authenticated user's elder_id.
+        val url = "$supabaseUrl/rest/v1/medications" +
+                "?select=*&elder_id=eq.$elderId"
 
         val request = Request.Builder()
             .url(url)
             .addHeader("apikey", anonKey)
-            .addHeader("Authorization", "Bearer $anonKey")
+            .addHeader("Authorization", "Bearer $accessToken")
             .get()
             .build()
 
-        val response = OkHttpClient().newCall(request).execute()
-        val responseBody = response.body?.string() ?: "[]"
+        OkHttpClient().newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "[]"
 
-        // 🚨 CRITICAL LOGGING - Check Logcat for "SmartCareDB" to see the real error!
-        Log.e("SmartCareDB", "STATUS CODE: ${response.code}")
-        Log.e("SmartCareDB", "RESPONSE DATA: $responseBody")
+            Log.d(
+                "SmartCareDB",
+                "Medication fetch status: ${response.code}"
+            )
 
-        if (response.isSuccessful) {
-            val jsonArray = JSONArray(responseBody)
-            val list = mutableListOf<Medication>()
+            if (response.isSuccessful) {
+                val jsonArray = JSONArray(responseBody)
+                val list = mutableListOf<Medication>()
 
-            for (i in 0 until jsonArray.length()) {
-                val item = jsonArray.getJSONObject(i)
-                list.add(
-                    Medication(
-                        id = item.optString("id", ""),
-                        // Checks for 'name', and if missing, checks for 'medicine_name'
-                        name = item.optString("name", item.optString("medicine_name", "Unknown")),
-                        expectedCount = item.optInt("expected_count", 0)
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.getJSONObject(i)
+
+                    list.add(
+                        Medication(
+                            id = item.optString("id", ""),
+                            name = item.optString("med_name", "Unknown"),
+                            expectedCount = item.optInt("current_stock", 0)
+                        )
                     )
+                }
+
+                list
+            } else {
+                Log.e(
+                    "SmartCareDB",
+                    "Medication fetch failed: $responseBody"
                 )
+                emptyList()
             }
-            list
-        } else {
-            emptyList()
         }
     } catch (e: Exception) {
-        Log.e("SmartCareDB", "Exception while fetching", e)
+        Log.e(
+            "SmartCareDB",
+            "Exception while fetching medications",
+            e
+        )
         emptyList()
     }
 }
 
-// --- YOLO CODESPACES NETWORK LOGIC ---
+// Legacy network-analysis function retained for compatibility.
 private fun sendElderScanRequest(bitmap: Bitmap): AIResponse {
-    val renderBaseUrl = "https://orange-cod-r4vx9g9r5gwwhpjg9-5000.app.github.dev"
+    val renderBaseUrl =
+        "https://orange-cod-r4vx9g9r5gwwhpjg9-5000.app.github.dev"
     val endpoint = "$renderBaseUrl/analyze"
 
     return try {
         val scaledBitmap = Bitmap.createScaledBitmap(
             bitmap,
-            bitmap.width / 2,
-            bitmap.height / 2,
+            (bitmap.width / 2).coerceAtLeast(1),
+            (bitmap.height / 2).coerceAtLeast(1),
             true
         )
 
         val stream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+        scaledBitmap.compress(
+            Bitmap.CompressFormat.JPEG,
+            80,
+            stream
+        )
         val byteArray = stream.toByteArray()
 
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("image", "pill.jpg", byteArray.toRequestBody("image/jpeg".toMediaTypeOrNull()))
+            .addFormDataPart(
+                "image",
+                "pill.jpg",
+                byteArray.toRequestBody(
+                    "image/jpeg".toMediaTypeOrNull()
+                )
+            )
             .build()
 
-        val request = Request.Builder().url(endpoint).post(requestBody).build()
+        val request = Request.Builder()
+            .url(endpoint)
+            .post(requestBody)
+            .build()
+
         val client = OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
 
-        val response = client.newCall(request).execute()
+        client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: "{}"
+                val json = JSONObject(responseBody)
 
-        if (response.isSuccessful) {
-            val responseBody = response.body?.string() ?: "{}"
-            val json = JSONObject(responseBody)
-
-            val pills = json.optInt("ok_pills", 0)
-            val text = json.optString("ocr_text", "")
-
-            AIResponse(okPills = pills, ocrText = text)
-        } else {
-            AIResponse(error = "Error: Server returned ${response.code}")
+                AIResponse(
+                    okPills = json.optInt("ok_pills", 0),
+                    ocrText = json.optString("ocr_text", "")
+                )
+            } else {
+                AIResponse(
+                    error = "Error: Server returned ${response.code}"
+                )
+            }
         }
     } catch (e: Exception) {
-        Log.e("SmartCareScanner", "CRITICAL NETWORK ERROR", e)
-        AIResponse(error = "Network Error. Check Logcat for details.")
+        Log.e(
+            "SmartCareScanner",
+            "Network analysis failed",
+            e
+        )
+        AIResponse(
+            error = "Network error. Check Logcat for details."
+        )
     }
 }
+
+data class AIResponse(
+    val okPills: Int = 0,
+    val ocrText: String = "",
+    val error: String? = null
+)

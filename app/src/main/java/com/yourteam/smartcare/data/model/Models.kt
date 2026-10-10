@@ -1,3 +1,4 @@
+
 package com.yourteam.smartcare.data.model
 
 import kotlinx.serialization.SerialName
@@ -33,7 +34,7 @@ data class Medication(
     @SerialName("min_interval_hours") val minIntervalHours: Int = 4,
     @SerialName("current_stock") val currentStock: Int = 0,
     @SerialName("expiry_date") val expiryDate: String? = null,
-    @SerialName("is_taken") val isTaken: Boolean = false, // 👈 Added this to match the database & UI
+    @SerialName("is_taken") val isTaken: Boolean = false,
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -55,5 +56,11 @@ data class VerificationLog(
     @SerialName("expected_count") val expectedCount: Int,
     @SerialName("actual_count_yolo") val actualCountYolo: Int,
     @SerialName("ocr_expiry_date") val ocrExpiryDate: String? = null,
-    @SerialName("mismatch_flag") val mismatchFlag: Boolean = false
+    @SerialName("mismatch_flag") val mismatchFlag: Boolean = false,
+    @SerialName("ai_filled_count") val aiFilledCount: Int? = null,
+    @SerialName("ai_empty_count") val aiEmptyCount: Int? = null,
+    @SerialName("ai_broken_count") val aiBrokenCount: Int? = null,
+    @SerialName("confirmed_filled_count") val confirmedFilledCount: Int? = null,
+    @SerialName("confirmed_empty_count") val confirmedEmptyCount: Int? = null,
+    @SerialName("confirmed_broken_count") val confirmedBrokenCount: Int? = null
 )

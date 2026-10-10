@@ -206,6 +206,8 @@ dependencies {
 
     // AI Scanner
     val cameraxVersion = "1.3.4"
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     implementation(
         "androidx.camera:camera-core:$cameraxVersion"
