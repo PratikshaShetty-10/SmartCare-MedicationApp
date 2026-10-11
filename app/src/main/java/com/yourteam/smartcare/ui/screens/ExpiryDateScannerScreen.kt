@@ -39,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -71,8 +70,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.time.DateTimeException
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.time.YearMonth
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -81,9 +81,7 @@ private const val EXPIRY_CAMERA_TAG = "ExpiryCamera"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpiryDateScannerScreen(
-    navController: NavController
-) {
+fun ExpiryDateScannerScreen(navController: NavController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
@@ -91,7 +89,6 @@ fun ExpiryDateScannerScreen(
     val repository = remember { MedicationRepository() }
     val detector = remember { ExpiryDateRegionDetector() }
 
-    // Keep the same PreviewView instance while this screen is active.
     val previewView = remember(context) {
         PreviewView(context).apply {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
@@ -109,30 +106,34 @@ fun ExpiryDateScannerScreen(
     }
 
     var cameraReady by remember { mutableStateOf(false) }
-    var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
-    var selectedMedication by remember { mutableStateOf<Medication?>(null) }
+    var medications by remember {
+        mutableStateOf<List<Medication>>(emptyList())
+    }
+    var selectedMedication by remember {
+        mutableStateOf<Medication?>(null)
+    }
     var medicationMenuExpanded by remember { mutableStateOf(false) }
 
     var detectedCrop by remember { mutableStateOf<Bitmap?>(null) }
-    var rawOcrText by remember { mutableStateOf("") }
     var confirmedDate by remember { mutableStateOf("") }
     var message by remember {
         mutableStateOf("Select a medication to begin scanning.")
     }
+
     var isBusy by remember { mutableStateOf(false) }
     var saveSucceeded by remember { mutableStateOf(false) }
+    var dateDetected by remember { mutableStateOf(false) }
 
-    val cameraPermissionLauncher =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission()
-        ) { granted ->
-            cameraGranted = granted
-            message = if (granted) {
-                "Camera permission granted. Starting camera…"
-            } else {
-                "Camera permission is required to scan an expiry label."
-            }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        cameraGranted = granted
+        message = if (granted) {
+            "Camera permission granted. Starting camera…"
+        } else {
+            "Camera permission is required to scan an expiry label."
         }
+    }
 
     LaunchedEffect(Unit) {
         if (!cameraGranted) {
@@ -149,12 +150,11 @@ fun ExpiryDateScannerScreen(
             }
         } catch (e: Exception) {
             Log.e(EXPIRY_CAMERA_TAG, "Could not load medications", e)
-            message = "Could not load medications: ${e.localizedMessage ?: "Please try again."}"
+            message = "Could not load medications: " +
+                    (e.localizedMessage ?: "Please try again.")
         }
     }
 
-    // Camera lifecycle binding.
-    // Do not call unbindAll(), because other camera workflows must be preserved.
     DisposableEffect(cameraGranted, previewView, lifecycleOwner) {
         if (!cameraGranted) {
             cameraReady = false
@@ -188,13 +188,23 @@ fun ExpiryDateScannerScreen(
                         boundPreview = preview
                         cameraReady = true
 
-                        Log.d(EXPIRY_CAMERA_TAG, "Camera preview bound successfully")
-                        message = "Camera ready. Position the expiry label in view."
-                    } catch (e: Exception) {
-                        Log.e(EXPIRY_CAMERA_TAG, "Camera preview binding failed", e)
-                        cameraReady = false
+                        Log.d(
+                            EXPIRY_CAMERA_TAG,
+                            "Camera preview bound successfully"
+                        )
+
                         message =
-                            "Could not start camera: ${e.localizedMessage ?: "Unknown error"}"
+                            "Camera ready. Position the expiry label in view."
+                    } catch (e: Exception) {
+                        Log.e(
+                            EXPIRY_CAMERA_TAG,
+                            "Camera preview binding failed",
+                            e
+                        )
+
+                        cameraReady = false
+                        message = "Could not start camera: " +
+                                (e.localizedMessage ?: "Unknown error")
                     }
                 },
                 ContextCompat.getMainExecutor(context)
@@ -211,7 +221,11 @@ fun ExpiryDateScannerScreen(
                     try {
                         provider.unbind(preview)
                     } catch (e: Exception) {
-                        Log.w(EXPIRY_CAMERA_TAG, "Preview cleanup failed", e)
+                        Log.w(
+                            EXPIRY_CAMERA_TAG,
+                            "Preview cleanup failed",
+                            e
+                        )
                     }
                 }
             }
@@ -220,8 +234,8 @@ fun ExpiryDateScannerScreen(
 
     fun resetScan() {
         detectedCrop = null
-        rawOcrText = ""
         confirmedDate = ""
+        dateDetected = false
         saveSucceeded = false
         message = "Ready to scan. Position the expiry label clearly in view."
     }
@@ -247,14 +261,15 @@ fun ExpiryDateScannerScreen(
         val capturedBitmap = previewView.bitmap
 
         if (capturedBitmap == null) {
-            message = "Camera image is not ready. Wait for the preview and try again."
+            message =
+                "Camera image is not ready. Wait for the preview and try again."
             return
         }
 
         isBusy = true
         saveSucceeded = false
+        dateDetected = false
         detectedCrop = null
-        rawOcrText = ""
         confirmedDate = ""
         message = "Detecting the expiry-date region…"
 
@@ -268,69 +283,82 @@ fun ExpiryDateScannerScreen(
 
                 if (detectedBitmap == null) {
                     message = detection.message.ifBlank {
-                        "No expiry-date region detected. Improve the lighting, move closer, and scan again."
+                        "No expiry-date region detected. Improve lighting and scan again."
                     }
                     return@launch
                 }
 
-                // Reject tiny or invalid crops before passing them to OCR.
                 Log.d(
                     EXPIRY_CAMERA_TAG,
-                    "Detector crop dimensions: ${detectedBitmap.width} x ${detectedBitmap.height}"
+                    "Detector crop dimensions: " +
+                            "${detectedBitmap.width} x ${detectedBitmap.height}"
                 )
 
-                if (
-                    detectedBitmap.width < 32 ||
+                if (detectedBitmap.width < 32 ||
                     detectedBitmap.height < 32
                 ) {
                     message =
-                        "The detected region is too small to read. Move closer to the expiry label and scan again."
+                        "The detected region is too small. Move closer and scan again."
                     return@launch
                 }
 
-                // Copy the crop so the screen can display it independently.
                 val crop = detectedBitmap.copy(
                     Bitmap.Config.ARGB_8888,
                     false
                 )
 
-                if (crop.width < 32 || crop.height < 32) {
-                    message = "The cropped image is too small for OCR. Please scan again."
-                    return@launch
-                }
-
                 detectedCrop = crop
-                message = "Reading the expiry-date text…"
 
                 Log.d(
                     EXPIRY_CAMERA_TAG,
                     "OCR input dimensions: ${crop.width} x ${crop.height}"
                 )
 
+                message = "Reading the expiry date…"
+
                 val recognizedText = recognizeExpiryText(crop)
-                rawOcrText = recognizedText
+
+                Log.d(EXPIRY_CAMERA_TAG, "OCR text: $recognizedText")
 
                 if (recognizedText.isBlank()) {
                     message =
-                        "No readable text found. Adjust the label and try again."
+                        "No readable text found. Adjust the label and scan again."
                     return@launch
                 }
 
                 val parsedDate = findCompleteExpiryDate(recognizedText)
 
+                Log.d(
+                    EXPIRY_CAMERA_TAG,
+                    "Parsed expiry date: $parsedDate"
+                )
+
                 if (parsedDate != null) {
                     confirmedDate = parsedDate
-                    message =
-                        "Review the detected date and correct it if necessary before saving."
+                    dateDetected = true
+
+                    val status = getExpiryStatus(parsedDate)
+
+                    message = when (status) {
+                        ExpiryStatus.EXPIRED ->
+                            "Expired date detected. Do not use this medicine. Verify the printed date before saving."
+
+                        ExpiryStatus.WITHIN_EXPIRY ->
+                            "Expiry date detected. Verify the date before saving."
+
+                        ExpiryStatus.INVALID ->
+                            "The expiry date could not be verified."
+                    }
                 } else {
                     confirmedDate = ""
+                    dateDetected = false
                     message =
-                        "Text was detected, but no complete date was recognized. Enter the full date printed on the package. Do not guess missing parts."
+                        "Could not reliably identify a date next to an expiry label. Adjust the label and scan again."
                 }
             } catch (e: Exception) {
                 Log.e(EXPIRY_CAMERA_TAG, "Expiry scan failed", e)
-                message =
-                    "Scan failed: ${e.localizedMessage ?: "Please try again."}"
+                message = "Scan failed: " +
+                        (e.localizedMessage ?: "Please try again.")
             } finally {
                 isBusy = false
             }
@@ -352,21 +380,28 @@ fun ExpiryDateScannerScreen(
             return
         }
 
-        val dateToSave = try {
-            LocalDate.parse(
-                confirmedDate.trim(),
-                DateTimeFormatter.ISO_LOCAL_DATE
-            ).toString()
-        } catch (_: DateTimeParseException) {
-            message = "Enter a valid date in YYYY-MM-DD format."
+        if (!dateDetected || confirmedDate.isBlank()) {
+            message = "Scan and detect a valid expiry date first."
             return
         }
 
-        if (isBusy) return
+        val dateToSave = try {
+            LocalDate.parse(confirmedDate).toString()
+        } catch (e: DateTimeParseException) {
+            message = "The detected date is invalid. Please scan again."
+            return
+        }
+
+        if (isBusy || saveSucceeded) return
+
+        val statusBeforeSave = getExpiryStatus(dateToSave)
 
         isBusy = true
-        saveSucceeded = false
-        message = "Saving confirmed expiry date…"
+        message = if (statusBeforeSave == ExpiryStatus.EXPIRED) {
+            "Saving expired date. Do not use this medicine."
+        } else {
+            "Saving expiry date…"
+        }
 
         scope.launch {
             try {
@@ -377,7 +412,7 @@ fun ExpiryDateScannerScreen(
                     )
                 }
 
-                medications = medications.map { item ->
+                val updatedMedications = medications.map { item ->
                     if (item.id == medicationId) {
                         item.copy(expiryDate = dateToSave)
                     } else {
@@ -385,17 +420,38 @@ fun ExpiryDateScannerScreen(
                     }
                 }
 
-                selectedMedication = medications.firstOrNull {
+                medications = updatedMedications
+                selectedMedication = updatedMedications.firstOrNull {
                     it.id == medicationId
                 }
 
                 confirmedDate = dateToSave
                 saveSucceeded = true
-                message = "Expiry date saved successfully."
+
+                message = when (getExpiryStatus(dateToSave)) {
+                    ExpiryStatus.EXPIRED ->
+                        "Expiry date saved. This medicine is expired — do not use it."
+
+                    ExpiryStatus.WITHIN_EXPIRY ->
+                        "Expiry date saved successfully. It is within its printed expiry date."
+
+                    ExpiryStatus.INVALID ->
+                        "Date saved, but its expiry status could not be verified."
+                }
+
+                Log.d(
+                    EXPIRY_CAMERA_TAG,
+                    "Saved expiry date for medication ID=$medicationId: $dateToSave; status=${getExpiryStatus(dateToSave)}"
+                )
             } catch (e: Exception) {
-                Log.e(EXPIRY_CAMERA_TAG, "Could not save expiry date", e)
-                message =
-                    "Could not save the expiry date: ${e.localizedMessage ?: "Please try again."}"
+                Log.e(
+                    EXPIRY_CAMERA_TAG,
+                    "Could not save expiry date",
+                    e
+                )
+
+                message = "Could not save expiry date: " +
+                        (e.localizedMessage ?: "Please try again.")
             } finally {
                 isBusy = false
             }
@@ -429,12 +485,12 @@ fun ExpiryDateScannerScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Select the medicine, scan its expiry label, and verify the date before saving.",
+                text = "Select a medicine and scan its expiry label.",
                 style = MaterialTheme.typography.bodyMedium
             )
 
             Text(
-                text = "Medication",
+                text = "Choose Medication",
                 style = MaterialTheme.typography.titleSmall
             )
 
@@ -478,10 +534,18 @@ fun ExpiryDateScannerScreen(
             }
 
             selectedMedication?.expiryDate?.let { expiryDate ->
-                Text(
-                    text = "Current saved expiry date: $expiryDate",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                val savedStatus = getExpiryStatus(expiryDate)
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Currently saved expiry date: $expiryDate",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    ExpiryStatusText(status = savedStatus)
+                }
             }
 
             Card(
@@ -514,7 +578,9 @@ fun ExpiryDateScannerScreen(
 
                         Button(
                             onClick = {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                cameraPermissionLauncher.launch(
+                                    Manifest.permission.CAMERA
+                                )
                             }
                         ) {
                             Text("Grant Camera Permission")
@@ -551,8 +617,10 @@ fun ExpiryDateScannerScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
-                        contentDescription = "Reset scan"
+                        contentDescription = "Refresh scan"
                     )
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text("Refresh")
                 }
             }
 
@@ -562,7 +630,9 @@ fun ExpiryDateScannerScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp)
+                    )
                     Spacer(modifier = Modifier.size(10.dp))
                     Text("Please wait…")
                 }
@@ -600,74 +670,129 @@ fun ExpiryDateScannerScreen(
 
             detectedCrop?.let { crop ->
                 Text(
-                    text = "Detected expiry-label region",
+                    text = "Detected label region",
                     style = MaterialTheme.typography.titleSmall
                 )
 
                 Image(
                     bitmap = crop.asImageBitmap(),
-                    contentDescription = "Detected expiry-date region",
+                    contentDescription = "Detected expiry label",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp)
                 )
             }
 
-            if (rawOcrText.isNotBlank()) {
-                Text(
-                    text = "Detected OCR text",
-                    style = MaterialTheme.typography.titleSmall
-                )
+            if (dateDetected && confirmedDate.isNotBlank()) {
+                val expiryStatus = getExpiryStatus(confirmedDate)
 
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when (expiryStatus) {
+                            ExpiryStatus.EXPIRED ->
+                                MaterialTheme.colorScheme.errorContainer
+
+                            ExpiryStatus.WITHIN_EXPIRY ->
+                                MaterialTheme.colorScheme.secondaryContainer
+
+                            ExpiryStatus.INVALID ->
+                                MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Detected Expiry Date",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        Text(
+                            text = confirmedDate,
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+
+                        ExpiryStatusText(status = expiryStatus)
+
+
+
+
+                    }
+                }
+
+                Button(
+                    onClick = { saveConfirmedDate() },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy && !saveSucceeded
+                ) {
                     Text(
-                        text = rawOcrText,
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium
+                        if (saveSucceeded) {
+                            "Expiry Date Saved"
+                        } else {
+                            "Confirm & Save"
+                        }
                     )
                 }
             }
-
-            Text(
-                text = "Confirm expiry date",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            OutlinedTextField(
-                value = confirmedDate,
-                onValueChange = {
-                    confirmedDate = it
-                    saveSucceeded = false
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Expiry date (YYYY-MM-DD)") },
-                placeholder = { Text("2027-04-30") },
-                singleLine = true,
-                enabled = !isBusy
-            )
-
-            Text(
-                text = "Check the printed package date before saving. If only month and year are printed, do not invent a day.",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Button(
-                onClick = { saveConfirmedDate() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selectedMedication != null &&
-                        confirmedDate.isNotBlank() &&
-                        !isBusy
-            ) {
-                Text(
-                    if (saveSucceeded) {
-                        "Expiry Date Saved"
-                    } else {
-                        "Confirm & Save Expiry Date"
-                    }
-                )
-            }
         }
     }
+}
+
+private enum class ExpiryStatus {
+    EXPIRED,
+    WITHIN_EXPIRY,
+    INVALID
+}
+
+private fun getExpiryStatus(expiryDate: String): ExpiryStatus {
+    return try {
+        val date = LocalDate.parse(expiryDate)
+
+        if (date.isBefore(LocalDate.now())) {
+            ExpiryStatus.EXPIRED
+        } else {
+            ExpiryStatus.WITHIN_EXPIRY
+        }
+    } catch (e: DateTimeParseException) {
+        Log.w(
+            EXPIRY_CAMERA_TAG,
+            "Could not calculate expiry status for: $expiryDate",
+            e
+        )
+        ExpiryStatus.INVALID
+    }
+}
+
+@Composable
+private fun ExpiryStatusText(status: ExpiryStatus) {
+    val label: String
+    val color: Color
+
+    when (status) {
+        ExpiryStatus.EXPIRED -> {
+            label = "EXPIRED — DO NOT USE"
+            color = MaterialTheme.colorScheme.error
+        }
+
+        ExpiryStatus.WITHIN_EXPIRY -> {
+            label = "WITHIN EXPIRY DATE"
+            color = Color(0xFF2E7D32)
+        }
+
+        ExpiryStatus.INVALID -> {
+            label = "UNABLE TO VERIFY EXPIRY"
+            color = MaterialTheme.colorScheme.onSurface
+        }
+    }
+
+    Text(
+        text = label,
+        color = color,
+        style = MaterialTheme.typography.titleMedium
+    )
 }
 
 private suspend fun recognizeExpiryText(bitmap: Bitmap): String =
@@ -698,40 +823,160 @@ private suspend fun recognizeExpiryText(bitmap: Bitmap): String =
     }
 
 /**
- * Accepts only a complete, valid date containing day, month, and year.
- * Returns ISO YYYY-MM-DD for the Supabase PostgreSQL date column.
+ * Extracts a date associated with an explicit expiry label.
+ *
+ * Supports:
+ * YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+ * DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+ * DD-MM-YY, DD/MM/YY, DD.MM.YY
+ * MM/YYYY, MM-YYYY, MM.YYYY
+ * MM/YY, MM-YY, MM.YY
+ *
+ * Month/year values are converted to the final day of that month.
+ * Returns ISO YYYY-MM-DD for the repository.
+ *
+ * If an explicit expiry label is present but its date is unreadable,
+ * the parser returns null instead of guessing from a manufacture date.
  */
 private fun findCompleteExpiryDate(text: String): String? {
-    val patterns = listOf(
-        Regex("""\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b"""),
-        Regex("""\b(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2})\b""")
+    val lines = text
+        .replace('\r', '\n')
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    if (lines.isEmpty()) return null
+
+    val expiryLabel = Regex(
+        """(?i)\bEXP(?:IRY)?(?:\s*\.?\s*DATE)?\b"""
     )
 
-    for ((index, pattern) in patterns.withIndex()) {
-        for (match in pattern.findAll(text)) {
-            val groups = match.groupValues
+    val excludedLabels = Regex(
+        """(?i)\b(?:MFG|MFD|MANUFACTURED|MRP|B\.?\s*NO|BATCH|PKD|PACKED)\b"""
+    )
 
-            val year: Int
-            val month: Int
-            val day: Int
+    for (index in lines.indices) {
+        val line = lines[index]
+        val labelMatch = expiryLabel.find(line) ?: continue
 
-            if (index == 0) {
-                year = groups[1].toIntOrNull() ?: continue
-                month = groups[2].toIntOrNull() ?: continue
-                day = groups[3].toIntOrNull() ?: continue
-            } else {
-                day = groups[1].toIntOrNull() ?: continue
-                month = groups[2].toIntOrNull() ?: continue
-                year = groups[3].toIntOrNull() ?: continue
+        // Reject an expiry label that is actually fused with a number,
+        // such as EXP2/2020. There is no word boundary between P and 2,
+        // so such a string will not match expiryLabel.
+        val candidate = line.substring(labelMatch.range.last + 1)
+            .trim()
+            .trimStart(':', '#', '-', '.', ' ')
+
+        if (candidate.isNotBlank()) {
+            val parsed = parseDateCandidate(candidate)
+
+            if (parsed != null) {
+                Log.d(
+                    EXPIRY_CAMERA_TAG,
+                    "Date parsed from expiry-labelled text: $candidate -> $parsed"
+                )
+                return parsed
             }
+        }
 
-            try {
-                return LocalDate.of(year, month, day).toString()
-            } catch (_: DateTimeParseException) {
-                // Invalid date: do not guess or silently correct OCR output.
-            } catch (_: Exception) {
-                // Ignore invalid date values and continue searching.
+        // Handle OCR where the label and date are on separate lines.
+        if (candidate.isBlank()) {
+            val nextLine = lines.getOrNull(index + 1)
+
+            if (nextLine != null &&
+                !excludedLabels.containsMatchIn(nextLine) &&
+                !expiryLabel.containsMatchIn(nextLine)
+            ) {
+                val parsed = parseDateCandidate(nextLine)
+
+                if (parsed != null) {
+                    Log.d(
+                        EXPIRY_CAMERA_TAG,
+                        "Date parsed from line after expiry label: $nextLine -> $parsed"
+                    )
+                    return parsed
+                }
             }
+        }
+
+        // An expiry label was found, but its date was not reliable.
+        // Do not accidentally save a date from another package field.
+        Log.w(
+            EXPIRY_CAMERA_TAG,
+            "Expiry label found but no valid date was detected: $line"
+        )
+        return null
+    }
+
+    // Without an explicit expiry label, the scanner cannot safely know
+    // whether a detected number belongs to MFG, BATCH, or EXP.
+    Log.w(EXPIRY_CAMERA_TAG, "No explicit expiry label found.")
+    return null
+}
+
+private fun parseDateCandidate(text: String): String? {
+    val candidate = text.trim()
+
+    if (candidate.isBlank()) return null
+
+    val yearFirst = Regex(
+        """(?<!\d)(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)"""
+    )
+
+    val dayFirst = Regex(
+        """(?<!\d)(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?!\d)"""
+    )
+
+    val monthYear = Regex(
+        """(?<!\d)(0?[1-9]|1[0-2])\s*[/.-]\s*(\d{2}|\d{4})(?!\d)"""
+    )
+
+    fun parseYear(value: String): Int? {
+        val number = value.toIntOrNull() ?: return null
+
+        return when (value.length) {
+            2 -> if (number <= 79) 2000 + number else 1900 + number
+            4 -> if (number in 2000..2099) number else null
+            else -> null
+        }
+    }
+
+    // Full year-first dates.
+    for (match in yearFirst.findAll(candidate)) {
+        val year = match.groupValues[1].toIntOrNull() ?: continue
+        val month = match.groupValues[2].toIntOrNull() ?: continue
+        val day = match.groupValues[3].toIntOrNull() ?: continue
+
+        try {
+            return LocalDate.of(year, month, day).toString()
+        } catch (_: DateTimeException) {
+            // Invalid dates are rejected.
+        }
+    }
+
+    // Full day-first dates.
+    for (match in dayFirst.findAll(candidate)) {
+        val day = match.groupValues[1].toIntOrNull() ?: continue
+        val month = match.groupValues[2].toIntOrNull() ?: continue
+        val year = parseYear(match.groupValues[3]) ?: continue
+
+        try {
+            return LocalDate.of(year, month, day).toString()
+        } catch (_: DateTimeException) {
+            // Invalid dates are rejected.
+        }
+    }
+
+    // Month/year expiry dates, for example 10/2025.
+    for (match in monthYear.findAll(candidate)) {
+        val month = match.groupValues[1].toIntOrNull() ?: continue
+        val year = parseYear(match.groupValues[2]) ?: continue
+
+        try {
+            return YearMonth.of(year, month)
+                .atEndOfMonth()
+                .toString()
+        } catch (_: DateTimeException) {
+            // Invalid month/year values are rejected.
         }
     }
 
