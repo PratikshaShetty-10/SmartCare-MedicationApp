@@ -37,7 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.yourteam.smartcare.data.model.AdherenceLog
-import com.yourteam.smartcare.data.model.Medication
 import com.yourteam.smartcare.data.model.VerificationLog
 import com.yourteam.smartcare.ui.AdherenceReportUiState
 import com.yourteam.smartcare.ui.MedicationUiState

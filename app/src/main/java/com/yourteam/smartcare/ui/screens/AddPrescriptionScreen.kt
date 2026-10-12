@@ -175,53 +175,7 @@ fun AddPrescriptionScreen(
                 Arrangement.spacedBy(16.dp)
         ) {
 
-            // ---------------------------------------------------------
-            // AUTO-FILL VIA LABEL SCAN
-            // ---------------------------------------------------------
 
-            Card(
-                onClick = onScanClick,
-                colors = CardDefaults.cardColors(
-                    containerColor =
-                        MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment =
-                        Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector =
-                            Icons.Default.PhotoCamera,
-                        contentDescription = null,
-                        tint =
-                            MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-
-                    Spacer(
-                        modifier = Modifier.width(16.dp)
-                    )
-
-                    Column {
-                        Text(
-                            "Auto-fill via Label Scan",
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Text(
-                            "Use camera to read bottle text",
-                            fontSize = 12.sp,
-                            color =
-                                MaterialTheme.colorScheme
-                                    .onSurfaceVariant
-                        )
-                    }
-                }
-            }
 
             // ---------------------------------------------------------
             // PRESCRIPTION DETAILS

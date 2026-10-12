@@ -191,29 +191,75 @@ class MedicationViewModel : ViewModel() {
             }
         }
     }
-
     // --- Dismiss / Mark Notification as Read ---
     fun dismissNotification(notificationId: String) {
         viewModelScope.launch {
+            Log.d(
+                "MedVM",
+                "DISMISS CALLED: notificationId=$notificationId"
+            )
+
             try {
+                // Mark the notification as read in Supabase.
                 SupabaseClient.client
                     .from("notifications")
-                    .update(
-                        {
-                            set("is_read", true)
-                        }
-                    ) {
+                    .update({
+                        set("is_read", true)
+                    }) {
                         filter {
                             eq("id", notificationId)
                         }
                     }
 
-                _notifications.value =
-                    _notifications.value.filter {
-                        it.id != notificationId
+                Log.d(
+                    "MedVM",
+                    "UPDATE REQUEST COMPLETED: id=$notificationId"
+                )
+
+                // Read the row back to verify the actual database value.
+                val updatedNotification =
+                    SupabaseClient.client
+                        .from("notifications")
+                        .select {
+                            filter {
+                                eq("id", notificationId)
+                            }
+                        }
+                        .decodeSingleOrNull<GuardianNotification>()
+
+                when {
+                    updatedNotification == null -> {
+                        Log.e(
+                            "MedVM",
+                            "VERIFY FAILED: Notification not found or not visible. id=$notificationId"
+                        )
                     }
+
+                    !updatedNotification.isRead -> {
+                        Log.e(
+                            "MedVM",
+                            "VERIFY FAILED: Notification is still unread. Check update permissions/RLS. id=$notificationId"
+                        )
+                    }
+
+                    else -> {
+                        _notifications.value =
+                            _notifications.value.filter {
+                                it.id != notificationId
+                            }
+
+                        Log.d(
+                            "MedVM",
+                            "DISMISS SUCCESS: Database confirms is_read=true. id=$notificationId"
+                        )
+                    }
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(
+                    "MedVM",
+                    "DISMISS ERROR: id=$notificationId, error=${e.message}",
+                    e
+                )
             }
         }
     }
