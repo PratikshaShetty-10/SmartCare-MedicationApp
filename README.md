@@ -1,642 +1,721 @@
 # SmartCare — Medication Adherence and Emergency Response System
 
-**An Android-based healthcare assistance application designed to support elderly individuals with medication management while helping family caregivers stay informed and respond to important events.**
-
-SmartCare combines medication scheduling, automated reminders, missed-dose escalation, caregiver notifications, emergency SOS, location sharing, nearby pharmacy discovery, AI-assisted blister-pack detection, and expiry-date recognition in a single mobile application.
+**An Android-based healthcare assistance application designed to support elderly people with medication management and help family members stay informed about their well-being.**
 
 ---
 
-## 1. Overview
+## Table of Contents
 
-Managing medication regularly can become challenging for elderly individuals, particularly when they have multiple prescriptions, different dosage schedules, or limited assistance throughout the day.
-
-Family members and caregivers may also find it difficult to monitor whether medications have been acknowledged, identify missed doses promptly, or respond when an elderly family member needs help.
-
-**SmartCare was developed to address these challenges through a connected medication management and emergency response system.**
-
-The application provides two primary user roles:
-
-- **Elder:** Manages daily medication routines, receives reminders, confirms doses, accesses medicine scanning features, finds nearby pharmacies, and can send emergency SOS alerts.
-- **Guardian:** Connects with an elderly family member, manages medication schedules, monitors adherence information, receives missed-dose and other relevant notifications, and can respond to emergencies.
-
-The system combines Android application functionality with a Supabase backend, cloud-based notification services, device-level scheduling, location services, and AI-related integrations.
-
-### Project objectives
-
-- Simplify daily medication management for elderly individuals.
-- Reduce the chances of forgotten or unacknowledged medication doses.
-- Keep guardians informed through a structured missed-dose escalation mechanism.
-- Provide emergency communication with location information.
-- Help users identify nearby pharmacies.
-- Assist medication verification through blister-pack image analysis.
-- Recognize medicine expiry dates using OCR.
-- Provide a centralized platform for elderly users and their caregivers.
+1. [Introduction](#1-introduction)
+2. [Problem Statement](#2-problem-statement)
+3. [Project Objectives](#3-project-objectives)
+4. [Understanding SmartCare](#4-understanding-smartcare)
+5. [User Roles](#5-user-roles)
+6. [Features and Functionalities](#6-features-and-functionalities)
+7. [Medication Management Workflow](#7-medication-management-workflow)
+8. [Missed-Dose Escalation System](#8-missed-dose-escalation-system)
+9. [AI-Based Blister-Pack Detection](#9-ai-based-blister-pack-detection)
+10. [Expiry-Date Recognition](#10-expiry-date-recognition)
+11. [SOS and Location Assistance](#11-sos-and-location-assistance)
+12. [Nearby Pharmacy Discovery](#12-nearby-pharmacy-discovery)
+13. [Technology Stack](#13-technology-stack)
+14. [Backend and Service Integration](#14-backend-and-service-integration)
+15. [Testing and Validation](#15-testing-and-validation)
+16. [Project Setup](#16-project-setup)
+17. [Project Limitations](#17-project-limitations)
+18. [Future Enhancements](#18-future-enhancements)
+19. [Project Team and Acknowledgements](#19-project-team-and-acknowledgements)
+20. [Copyright and Usage Rights](#20-copyright-and-usage-rights)
+21. [Disclaimer](#21-disclaimer)
 
 ---
 
-## 2. Key Features
+## 1. Introduction
 
-### 2.1 Elder and Guardian Account Management
+Managing medication regularly can become challenging for elderly people, particularly when they need to follow multiple prescriptions, remember different dosage timings and keep track of their medication supplies.
 
-SmartCare supports two different user roles with separate application experiences.
+Family members and caregivers may also find it difficult to monitor whether an elderly person is following their medication schedule, especially when they are not physically present.
 
-**Elder features:**
+**SmartCare — Medication Adherence and Emergency Response System** is an Android application developed to address these challenges by bringing medication management, caregiver coordination, reminders and emergency assistance together in one platform.
+
+The application connects elderly users with their guardians or caregivers. It provides medication scheduling, scheduled reminders, missed-dose notifications, adherence monitoring, AI-assisted blister-pack detection, expiry-date recognition, SOS assistance and nearby pharmacy discovery.
+
+The main objective is to make everyday medication management more organised while helping guardians remain informed about important medication-related events.
+
+SmartCare combines Android application functionality with cloud-based backend services and AI-related integrations to provide a connected healthcare assistance experience.
+
+## 2. Problem Statement
+
+Elderly people who regularly take medication may face several challenges:
+
+- Forgetting medication timings.
+- Managing multiple medicines with different schedules.
+- Difficulty keeping track of missed doses.
+- Not knowing when medication supplies are running low.
+- Difficulty identifying the condition of medicine blister packs.
+- Forgetting or being unable to check medication expiry dates.
+- Limited access to immediate assistance during emergencies.
+- Difficulty finding nearby pharmacies when medication is required.
+
+At the same time, family members and caregivers may not always be available to monitor these situations personally.
+
+Traditional reminders alone may not be sufficient because they do not necessarily provide caregivers with information about missed doses or other important events.
+
+SmartCare aims to address these challenges through a connected application that supports both elderly users and their guardians.
+
+## 3. Project Objectives
+
+The primary objectives of SmartCare are:
+
+1. **Medication Management:** Provide a structured way for guardians to add and manage medication details and schedules.
+2. **Timely Reminders:** Help elderly users remember their medication timings through scheduled notifications.
+3. **Missed-Dose Monitoring:** Identify unacknowledged medication reminders and initiate an escalation workflow.
+4. **Guardian Notifications:** Keep guardians informed about missed medication events through push notifications.
+5. **Adherence Monitoring:** Provide medication activity information through adherence reports.
+6. **AI-Assisted Detection:** Integrate an image-based blister-pack detection model to identify different blister-pack conditions.
+7. **Expiry-Date Recognition:** Use text recognition to assist with identifying medicine expiry dates.
+8. **Emergency Assistance:** Provide an SOS feature with location-related information.
+9. **Pharmacy Discovery:** Help users find nearby pharmacies using location-based search.
+
+## 4. Understanding SmartCare
+
+SmartCare is designed around two connected user experiences:
+
+- **Elder:** The person who follows the medication schedule and uses the application for reminders, dose acknowledgement and assistance.
+- **Guardian:** The family member or caregiver who manages medication information and monitors relevant activities.
+
+The application uses a pairing mechanism to connect an Elder account with a Guardian account.
+
+Once connected, the Guardian can manage medication schedules, while the Elder can view the assigned medicines and acknowledge medication reminders.
+
+The application also supports additional functionality such as adherence reports, blister-pack scanning, expiry-date recognition, SOS assistance and pharmacy discovery.
+
+The central idea is to make medication-related information accessible to both users while keeping their responsibilities clear.
+
+## 5. User Roles
+
+### 5.1 Elder
+
+The Elder interface focuses on making everyday medication activities simple and accessible.
+
+The Elder can:
+
 - View assigned medications.
+- Check medication names and schedules.
 - Receive scheduled medication reminders.
-- Confirm medication doses using the Taken action.
-- View medication-related information.
-- Access blister-pack scanning and expiry recognition.
-- Send SOS alerts.
-- Find nearby pharmacies.
+- Acknowledge a medication reminder using the **Taken** action.
+- Access medication-related scanning functionality.
+- Use the SOS feature when assistance is needed.
+- Discover nearby pharmacies.
 
-**Guardian features:**
-- Connect with an Elder using a pairing mechanism.
-- Manage medication prescriptions and schedules.
-- Monitor medication adherence.
-- Receive missed-dose notifications.
+The Taken action records the user's acknowledgement of a medication reminder. It does not independently verify that the medicine was physically consumed.
+
+### 5.2 Guardian
+
+The Guardian interface focuses on medication management and monitoring.
+
+The Guardian can:
+
+- Register and access the application.
+- Generate a pairing code to connect with an Elder.
+- Manage medication information for the paired Elder.
+- Add and maintain medication schedules.
+- Monitor medication activity.
 - View adherence reports.
-- Receive relevant medication-related alerts.
-- Access emergency-related information.
+- Receive notifications about missed medication events.
+- Stay informed about relevant medication-related alerts.
 
-### 2.2 Elder–Guardian Pairing
+### 5.3 Elder–Guardian Pairing
 
-SmartCare provides a pairing mechanism that connects an Elder account with a Guardian account.
+SmartCare uses a pairing-code mechanism to establish a connection between the Elder and Guardian.
 
-The Guardian generates a pairing code, which the Elder uses to establish the connection.
+The general workflow is:
 
-After pairing:
-- The Guardian can manage medication information.
-- The Elder can view the assigned medication schedule.
-- Medication adherence information can be associated with the connected accounts.
-- Guardian-related notification workflows can use the established relationship.
+1. The Guardian generates a pairing code.
+2. The Elder enters the generated code.
+3. The application validates the pairing request.
+4. Once successfully paired, the accounts are connected.
+5. The Guardian can manage medication information for the paired Elder.
 
-This creates a connected caregiving environment rather than treating medication management as an isolated activity.
+This connection forms the basis for medication management and caregiver monitoring.
 
-### 2.3 Medication Management
+## 6. Features and Functionalities
 
-Medication management is one of the application's central functionalities.
+### 6.1 User Authentication
 
-Guardians can create and manage medication schedules for connected elderly users.
+SmartCare provides an authentication mechanism for users to access their respective application experiences.
 
-Medication information includes details such as:
+Supabase is used as part of the backend authentication and data-management infrastructure.
+
+The application distinguishes between Elder and Guardian functionality so that users can access the features associated with their roles.
+
+### 6.2 Medication Management
+
+Medication management is one of the core functionalities of SmartCare.
+
+The Guardian can add medication information and configure schedules for the paired Elder.
+
+Medication information can include:
+
 - Medication name.
 - Dosage information.
-- Scheduled time.
-- Frequency or recurrence.
-- Start and end dates, where applicable.
+- Scheduled medication timings.
 - Relevant medication details.
+- Expiry-date information where available.
 
-The Elder can view the assigned medications and their schedules.
+The Elder can view the assigned medication information and follow the configured schedule.
 
-The application uses the backend to maintain medication information and synchronize relevant data between the connected users.
+### 6.3 Scheduled Medication Reminders
 
-### 2.4 Automated Medication Reminders
+SmartCare uses Android's **AlarmManager** to schedule medication reminders.
 
-SmartCare uses Android's **AlarmManager** to schedule medication reminders on the device.
+When a medication reminder is due, the application triggers a notification to inform the Elder that it is time to take the scheduled medicine.
 
-The reminder workflow is designed to notify the Elder when a medication dose is due.
+The Elder can acknowledge the reminder using the Taken action.
 
-**Workflow:**
+This acknowledgement is recorded in the application's medication activity and can be used for adherence monitoring.
 
-1. A Guardian creates a medication schedule.
-2. Medication information is stored through the backend.
-3. The Android application synchronizes the relevant medication schedule.
-4. AlarmManager schedules the corresponding reminder.
-5. When the scheduled time arrives, the application triggers the reminder.
-6. The Elder receives the medication notification.
-7. The Elder can acknowledge the dose using the Taken action.
+### 6.4 Medication Adherence Reports
 
-This approach uses Android's device-level scheduling capabilities instead of depending exclusively on continuous application execution.
+SmartCare includes an adherence-reporting feature to help guardians understand the Elder's medication activity.
 
-### 2.5 Three-Stage Missed-Dose Escalation System
+The report uses recorded medication information and acknowledgement history to present adherence-related details.
 
-One of SmartCare's important features is its automated missed-dose escalation mechanism.
+It helps guardians review medication activity over a selected period and identify patterns that may require attention.
 
-A reminder alone may not be sufficient when an Elder does not acknowledge a medication dose. SmartCare therefore includes a progressive escalation workflow intended to inform the Guardian when a dose remains unacknowledged.
+An acknowledgement is treated as a recorded user action, not as independent proof of medicine consumption.
 
-**Escalation sequence:**
+### 6.5 Guardian Notifications
 
-| Stage | Event | System behaviour |
-|---|---|---|
-| Initial reminder | Scheduled medication time (T+0) | Elder receives the medication reminder. |
-| Escalation 1 | T+5 minutes | First missed-dose escalation checkpoint. |
-| Escalation 2 | T+10 minutes | Second escalation checkpoint. |
-| Escalation 3 | T+15 minutes | Final escalation checkpoint. |
+The application integrates Supabase Edge Functions and Firebase Cloud Messaging (FCM) to support notification delivery to guardians.
 
-The production-intended schedule uses the above intervals. During development and testing, the escalation interval was shortened to two minutes using a configurable `STEP_MINUTES` value to make testing faster.
+When relevant medication-related events occur, the backend notification workflow can process the event and send a push notification.
 
-**How the workflow operates:**
+This helps guardians remain informed without having to continuously open the application.
 
-1. The medication reminder is triggered.
-2. The application waits for the Elder's acknowledgement.
-3. If the dose is acknowledged, the escalation process should be stopped.
-4. If no acknowledgement is received, the next escalation checkpoint is processed.
-5. The missed-dose workflow communicates with the backend.
-6. Supabase Edge Functions handle the relevant missed-dose notification workflow.
-7. Firebase Cloud Messaging (FCM) is used to deliver notifications to the Guardian.
-8. The Guardian receives information about the missed-dose event.
+### 6.6 Medication Supply and Low-Stock Alerts
 
-The system is designed to avoid repeatedly processing the same escalation event through its dose-processing and acknowledgement mechanisms.
+SmartCare includes medication-related low-stock notification functionality to help guardians remain aware of medication supply concerns.
 
-**Important distinction:** The Taken action represents a user's acknowledgement in the application. It does not independently prove that the medicine was physically consumed.
+The purpose is to make it easier to identify when a medicine may need attention or replenishment.
 
-### 2.6 Guardian Notifications
+### 6.7 AI-Based Blister-Pack Scanning
 
-SmartCare integrates **Firebase Cloud Messaging (FCM)** with Supabase Edge Functions for cloud-based notifications.
+SmartCare integrates an AI-based blister-pack detection model to assist with identifying the condition of medicine blister packs.
 
-The notification architecture supports communication between the Elder's medication-related events and the Guardian.
-
-The system includes:
-- Missed-dose notifications.
-- Guardian alerts related to medication events.
-- Notification handling through backend functions.
-- Separate in-app notification presentation.
-
-Some notification types, including MISSED_DOSE and LOW_STOCK, are also presented as notification cards in the Guardian dashboard.
-
-This combination of backend processing and push notifications helps keep guardians informed without requiring them to continuously monitor the application.
-
-### 2.7 Medication Adherence Tracking and Reports
-
-SmartCare maintains medication-related adherence information to help guardians understand the Elder's medication routine.
-
-The adherence workflow records relevant dose acknowledgements and associates them with medication schedules.
-
-The application includes an Adherence Report feature that presents medication-related adherence information.
-
-The reporting functionality is intended to help guardians:
-- Review medication adherence.
-- Understand dose acknowledgement history.
-- Identify missed or unacknowledged doses.
-- Monitor medication-related patterns.
-
-The report functionality uses the application's backend data rather than relying only on temporary device state.
-
-### 2.8 AI-Based Blister-Pack Detection
-
-SmartCare incorporates an AI-assisted blister-pack detection feature to help identify the condition of medicine blister packs.
-
-The detection functionality uses a YOLO-based object detection model exported to **ONNX format** and integrated with the Android application through ONNX Runtime.
+The integrated model is exported in ONNX format and runs through ONNX Runtime.
 
 The model identifies three classes:
 
-| Detection class | Meaning |
-|---|---|
-| `broken_tablet` | A broken or damaged tablet condition. |
-| `empty_pocket` | An empty blister-pack pocket. |
-| `filled_tablet` | A blister-pack pocket containing a tablet. |
+- `broken_tablet`
+- `empty_pocket`
+- `filled_tablet`
 
-**Detection workflow:**
+This functionality is intended to provide additional information during medication management.
 
-1. The user accesses the medicine scanning feature.
-2. The application captures or obtains a blister-pack image.
-3. The image is prepared for model inference.
-4. The ONNX model processes the image.
-5. The model produces detection results.
-6. The application interprets the detected classes.
-7. The resulting information is presented to support the medicine verification workflow.
+The detection result is an AI-generated prediction and should not be treated as a medically verified assessment.
 
-**Model information:**
-- Model format: ONNX.
-- Model input: `images`.
-- Input shape: `1 × 3 × 640 × 640`.
-- Input format: RGB image tensor.
-- Output shape: `1 × 7 × 8400`.
-- Inference runtime: ONNX Runtime.
+### 6.8 Expiry-Date Recognition
 
-The model is intended to assist users in inspecting blister packs. Its output should be treated as an AI-assisted indication rather than a medically validated confirmation that a dose has been consumed.
+SmartCare integrates Google ML Kit Text Recognition to assist with reading text from medicine packaging.
 
-### 2.9 Expiry-Date Recognition Using OCR
+The general process is:
 
-SmartCare also incorporates expiry-date recognition to help users identify the expiry information printed on medication packaging.
+1. The user accesses the expiry-date scanning functionality.
+2. Text is recognised from the available medicine-packaging image.
+3. The recognised text is processed to identify a possible expiry date.
+4. The application uses the identified date in its medication-expiry workflow.
+5. The expiry information can be updated through the application's backend integration.
 
-The application uses **Google ML Kit Text Recognition** to extract text from captured medicine images.
+OCR results may require user verification because packaging text, image quality and date formats can affect recognition accuracy.
 
-**Workflow:**
+### 6.9 SOS Emergency Assistance
 
-1. The user accesses the expiry scanning feature.
-2. An image of the medicine packaging is captured.
-3. ML Kit processes the image and recognizes visible text.
-4. The application extracts the relevant expiry-date information.
-5. The recognized date is presented for review.
-6. The user can use the scanner workflow to update the medication's expiry information.
+SmartCare provides an SOS feature intended to help users request assistance during an emergency.
 
-The application uses text recognition to assist with expiry-date identification. OCR results can depend on image quality, lighting, printing quality, and the format of the printed date.
+The application integrates location-related functionality so that relevant location information can be used as part of the emergency workflow.
 
-Recognized expiry information should therefore be checked against the original medicine packaging before it is relied upon.
+Google Fused Location Provider is used to obtain device location information.
 
-### 2.10 SOS Emergency Alert and Location Sharing
+The purpose is to make location-related assistance more accessible when the user needs help.
 
-SmartCare includes an SOS feature designed to help an Elder communicate an emergency to the connected Guardian.
+### 6.10 Nearby Pharmacy Discovery
 
-The application uses Android location capabilities, including Google Fused Location Provider, to obtain location information.
+The application integrates the Geoapify Places API to support nearby pharmacy discovery.
 
-**Emergency workflow:**
+Using location information, the application can retrieve nearby pharmacy results and display relevant information to the user.
 
-1. The Elder activates the SOS feature.
-2. The application accesses the available device location.
-3. The emergency workflow prepares the relevant location information.
-4. The application communicates the emergency information through the implemented backend and notification flow.
-5. The Guardian can receive emergency-related information and location details.
+The general workflow is:
 
-The purpose of this feature is to make it easier for guardians to understand where the Elder may need assistance.
+1. The application obtains the user's location.
+2. The location is used to search for nearby pharmacy places.
+3. Geoapify returns matching place information.
+4. The application processes and displays the pharmacy results.
 
-Location availability depends on device permissions, GPS settings, network connectivity, and the availability of a location fix.
+This feature helps users identify pharmacies near their current location.
 
-### 2.11 Nearby Pharmacy Discovery
+## 7. Medication Management Workflow
 
-SmartCare integrates the **Geoapify Places API** to help users discover pharmacies near their current location.
+The medication workflow connects the Guardian's medication management activities with the Elder's daily medication routine.
 
-**Workflow:**
+**Step 1 — Guardian manages medication**
 
-1. The application obtains the user's available location.
-2. The application makes a request to the Geoapify API.
-3. The API returns nearby pharmacy information.
-4. The application processes the response.
-5. Pharmacy information is displayed to the user.
+The Guardian adds medication details and configures the required schedules for the paired Elder.
 
-The integration supports nearby pharmacy discovery based on location.
+**Step 2 — Medication information becomes available**
 
-During development, the integration was tested successfully and returned pharmacy results, including a response containing 20 pharmacy entries.
+The application stores and retrieves the relevant medication information through its backend integration.
 
-The results depend on location accuracy, API availability, network connectivity, and the coverage of the location data provider.
+**Step 3 — Reminders are scheduled**
 
----
+The application uses Android AlarmManager to schedule reminders according to the configured medication timings.
 
-## 3. Technology Stack
+**Step 4 — Elder receives a reminder**
 
-SmartCare combines Android development, backend services, database integration, notification infrastructure, AI inference, and external APIs.
+When the scheduled time arrives, the Elder receives a medication notification.
 
-| Category | Technology | Purpose |
+**Step 5 — Elder acknowledges the reminder**
+
+The Elder can select Taken to record the acknowledgement.
+
+**Step 6 — Medication activity is recorded**
+
+The acknowledgement is reflected in the application's medication activity and can contribute to adherence reporting.
+
+**Step 7 — Unacknowledged reminders enter the escalation workflow**
+
+If a scheduled dose remains unacknowledged, the application's missed-dose escalation process can initiate the configured notification workflow.
+
+## 8. Missed-Dose Escalation System
+
+A key functionality of SmartCare is its multi-stage missed-dose escalation system.
+
+A normal medication reminder informs the Elder that a medicine is due. However, if the reminder remains unacknowledged, the application is designed to initiate additional escalation stages.
+
+The intended escalation timeline is:
+
+| Stage | Time | Purpose |
 |---|---|---|
-| Programming language | Kotlin | Android application development |
-| Android UI | Jetpack Compose | Application user interface |
-| IDE | Android Studio | Android development and debugging |
-| Backend platform | Supabase | Backend services and application integration |
-| Database | PostgreSQL | Persistent application data |
-| Backend functions | Supabase Edge Functions | Server-side event and notification processing |
-| Authentication | Supabase Auth | User authentication |
-| Push notifications | Firebase Cloud Messaging | Guardian and application notifications |
-| Local scheduling | Android AlarmManager | Medication reminders and escalation scheduling |
-| Background processing | WorkManager | Background task support |
-| Camera | CameraX | Image capture for scanning workflows |
-| AI model format | ONNX | Blister-pack detection model |
-| AI inference | ONNX Runtime | On-device model inference |
-| Object detection | YOLO-based model | Blister-pack condition detection |
-| OCR | Google ML Kit Text Recognition | Expiry-date text recognition |
-| Location | Google Fused Location Provider | Device location retrieval |
-| Places API | Geoapify | Nearby pharmacy discovery |
-| API testing | Postman | API request and response testing |
-| Version control | Git and GitHub | Source code management |
+| Initial reminder | T+0 | Notify the Elder that medication is due. |
+| First checkpoint | T+5 minutes | Check whether the dose has been acknowledged. |
+| Second checkpoint | T+10 minutes | Continue the escalation process if still unacknowledged. |
+| Final checkpoint | T+15 minutes | Reach the final configured escalation stage. |
 
----
+The timeline represents the intended configuration. During development and testing, the checkpoint interval was temporarily reduced to two minutes to make it easier to verify the workflow.
 
-## 4. System Architecture
+### How the escalation workflow works
 
-SmartCare follows a mobile-client and cloud-backend architecture.
+1. A medication reminder is scheduled for the configured time.
+2. The Elder receives the initial reminder.
+3. The application checks the medication acknowledgement status.
+4. If the dose remains unacknowledged, the escalation process continues through its configured checkpoints.
+5. Relevant missed-dose events are processed through the backend notification workflow.
+6. Supabase Edge Functions and Firebase Cloud Messaging support the guardian notification process.
 
-The Android application handles user interaction, local medication reminders, scanning workflows, location access, and application-level processing.
+The purpose of this system is to provide more than a single reminder and help guardians become aware of potentially missed medication events.
 
-Supabase provides backend services and persistent data storage, while Firebase Cloud Messaging supports push notification delivery.
+The workflow depends on device scheduling, application execution, network availability and notification permissions. It should not be interpreted as a guarantee of uninterrupted notification delivery.
 
-External services provide additional functionality such as pharmacy discovery and location-based services.
+## 9. AI-Based Blister-Pack Detection
 
-### High-level architecture
+SmartCare integrates a trained object-detection model to identify different conditions of medicine blister packs.
 
-```mermaid
-flowchart TB
-    subgraph ANDROID["Android Application - Kotlin"]
-        ELDER["Elder Interface"]
-        GUARDIAN["Guardian Interface"]
-        MED["Medication Management"]
-        ALARM["AlarmManager"]
-        SOS["SOS and Location"]
-        SCAN["CameraX Scanning"]
-        ONNX["ONNX Runtime"]
-        OCR["ML Kit OCR"]
-    end
+The model was developed as a separate AI component and integrated into the Android application.
 
-    subgraph BACKEND["Supabase Backend"]
-        AUTH["Supabase Auth"]
-        DB[("PostgreSQL Database")]
-        EDGE["Supabase Edge Functions"]
-    end
+### Model integration details
 
-    subgraph SERVICES["External Services"]
-        FCM["Firebase Cloud Messaging"]
-        GEO["Geoapify Places API"]
-        LOC["Google Fused Location Provider"]
-    end
+| Property | Details |
+|---|---|
+| Model format | ONNX |
+| Runtime | ONNX Runtime |
+| Input name | `images` |
+| Input shape | `1 × 3 × 640 × 640` |
+| Input format | RGB image tensor |
+| Output shape | `1 × 7 × 8400` |
+| ONNX IR version | 8 |
+| ONNX opset | 18 |
 
-    ELDER --> MED
-    GUARDIAN --> MED
-    MED <--> DB
-    MED <--> AUTH
-    MED --> ALARM
-    ALARM --> EDGE
-    EDGE --> FCM
-    FCM --> GUARDIAN
-    SCAN --> ONNX
-    SCAN --> OCR
-    SOS --> LOC
-    LOC --> SOS
-    SOS --> EDGE
-    MED --> GEO
-    GEO --> MED
-```
+### Detection classes
 
-The diagram represents the major application components and their integrations. Individual feature flows may use additional internal services and application components.
+| Class | Description |
+|---|---|
+| `broken_tablet` | Identifies a blister-pack region classified as broken tablet. |
+| `empty_pocket` | Identifies an empty blister-pack pocket. |
+| `filled_tablet` | Identifies a blister-pack pocket classified as containing a tablet. |
 
----
+The Android application integrates the exported model using ONNX Runtime so that the model can be used as part of the scanning workflow.
 
-## 5. Important Application Workflows
+### Important note about AI predictions
 
-### Workflow A: Elder–Guardian Connection
+The model provides image-based predictions. Lighting, image quality, camera angle, packaging condition and other factors may influence the result.
 
-```mermaid
-flowchart TD
-    A["Guardian creates pairing code"] --> B["Elder enters pairing code"]
-    B --> C["Backend validates pairing"]
-    C --> D["Accounts become connected"]
-    D --> E["Guardian manages medication"]
-    E --> F["Elder views medication schedule"]
-```
+The detection output is intended as an assistance feature. It is not a replacement for manual verification or professional medical advice.
 
-### Workflow B: Medication Reminder and Escalation
+## 10. Expiry-Date Recognition
 
-```mermaid
-flowchart TD
-    A["Guardian creates medication schedule"] --> B["Medication information stored"]
-    B --> C["Android synchronizes schedule"]
-    C --> D["AlarmManager schedules reminder"]
-    D --> E["Scheduled reminder triggers"]
-    E --> F{"Elder acknowledges dose?"}
-    F -->|Yes| G["Record acknowledgement"]
-    G --> H["Stop escalation"]
-    F -->|No| I["First escalation checkpoint"]
-    I --> J{"Acknowledged?"}
-    J -->|Yes| H
-    J -->|No| K["Second escalation checkpoint"]
-    K --> L{"Acknowledged?"}
-    L -->|Yes| H
-    L -->|No| M["Final escalation checkpoint"]
-    M --> N["Process missed-dose notification"]
-    N --> O["Supabase Edge Function"]
-    O --> P["FCM Guardian notification"]
-```
+SmartCare includes an expiry-date recognition workflow using Google ML Kit Text Recognition.
 
-The escalation interval is configurable. The production-intended checkpoints are 5, 10, and 15 minutes after the initial reminder.
+The purpose is to reduce the effort required to manually enter expiry information from medicine packaging.
 
-### Workflow C: Blister-Pack Detection
+The application uses OCR to recognise text from an image and processes the recognised information as part of the expiry-date workflow.
 
-```mermaid
-flowchart TD
-    A["Capture blister-pack image"] --> B["Prepare image input"]
-    B --> C["ONNX Runtime inference"]
-    C --> D["YOLO-based detection"]
-    D --> E["Interpret detected classes"]
-    E --> F["Display scanning result"]
-```
+The recognised date is used in the application's medication-expiry update process.
 
-### Workflow D: Expiry-Date Recognition
+### Technology used
 
-```mermaid
-flowchart TD
-    A["Capture medicine packaging"] --> B["ML Kit text recognition"]
-    B --> C["Extract recognized text"]
-    C --> D["Identify expiry information"]
-    D --> E["Review recognized date"]
-    E --> F["Update medication expiry information"]
-```
+- Google ML Kit Text Recognition.
+- Android application integration.
+- Backend integration for updating medication expiry information.
 
-### Workflow E: SOS and Pharmacy Discovery
+### Limitations
 
-```mermaid
-flowchart TD
-    A["Access device location"] --> B["Google Fused Location Provider"]
-    B --> C["Obtain available coordinates"]
-    C --> D{"Requested feature?"}
-    D -->|SOS| E["Prepare emergency information"]
-    E --> F["Notify connected Guardian"]
-    D -->|Pharmacy| G["Geoapify Places API"]
-    G --> H["Retrieve nearby pharmacies"]
-    H --> I["Display pharmacy results"]
-```
+OCR accuracy can depend on:
 
----
+- Image clarity.
+- Lighting conditions.
+- Text size and printing quality.
+- Packaging design.
+- Expiry-date format.
 
-## 6. Backend and Data Integration
+Therefore, recognised expiry information should be checked before being relied upon.
 
-SmartCare uses Supabase as its backend platform.
+## 11. SOS and Location Assistance
 
-The application communicates with backend services to support authentication, Elder–Guardian relationships, medication management, adherence information, and notification workflows.
+Emergency assistance is another important part of SmartCare.
 
-The backend architecture includes:
+The SOS feature is intended to help the Elder request assistance when required.
 
-- Supabase Authentication for user authentication.
-- PostgreSQL for persistent application data.
-- Supabase Edge Functions for server-side processing.
-- Firebase Cloud Messaging for push notifications.
+The application uses Google Fused Location Provider for device-location functionality.
 
-The Android application integrates these services to synchronize relevant information and coordinate workflows across the Elder and Guardian experiences.
+Location information is used as part of the application's emergency-related workflow.
 
-The backend database is part of the shared team implementation. Database creation and initial setup were handled as a separate area of team development, while application-side integration connects the Android features with the backend services.
+The feature is designed to make it easier to associate an assistance request with relevant location information.
 
----
+Location availability depends on device permissions, location settings, connectivity and the device's ability to obtain a location fix.
 
-## 7. Testing and Validation
+## 12. Nearby Pharmacy Discovery
 
-Testing was performed during implementation to verify individual features and their integration.
+SmartCare provides nearby pharmacy discovery through the Geoapify Places API.
 
-Areas covered include:
+The feature uses location-based search to identify pharmacies around the user's current location.
 
-- Medication scheduling and reminder workflows.
-- Missed-dose escalation behaviour.
-- Guardian notification integration.
-- Supabase backend communication.
-- API request and response validation using Postman.
-- Pharmacy API integration and response handling.
-- Blister-pack model validation in ONNX format.
-- OCR-based expiry recognition workflow.
-- Integration of application features across the Elder and Guardian experiences.
+### Technology used
 
-The ONNX model was also checked for model compatibility, including its input and output specifications.
+- Google Fused Location Provider.
+- Geoapify Places API.
+- Android networking and application integration.
 
-The project was developed and tested as an academic prototype. This does not represent formal clinical validation, large-scale production testing, or a guarantee of notification delivery under every Android device condition.
+### Pharmacy discovery workflow
 
----
+1. The application obtains the user's location.
+2. The location coordinates are used to perform a nearby-place search.
+3. Geoapify returns matching pharmacy information.
+4. The application processes the response.
+5. The pharmacy results are displayed to the user.
 
-## 8. Project Setup
+During development, the integration was tested successfully, and the application received pharmacy results from the API.
 
-The following information describes the general development setup. Backend configuration and project-specific Gradle settings must match the actual repository version.
+The feature helps users discover nearby pharmacies without having to search manually.
+
+## 13. Technology Stack
+
+SmartCare combines Android development, backend services, cloud messaging, AI model integration and location-based APIs.
+
+### Android Application
+
+| Technology | Purpose |
+|---|---|
+| Kotlin | Primary Android application programming language. |
+| Android Studio | Android development environment. |
+| Jetpack Compose | Android user-interface development. |
+| Android AlarmManager | Scheduling medication reminders and timed events. |
+| Google Fused Location Provider | Obtaining device location information. |
+
+### Backend and Cloud Services
+
+| Technology | Purpose |
+|---|---|
+| Supabase | Backend platform and application data services. |
+| Supabase Auth | User authentication. |
+| PostgreSQL | Relational database used through Supabase. |
+| Supabase Edge Functions | Backend event processing and notification workflow. |
+| Firebase Cloud Messaging | Push notification delivery. |
+
+### AI and Text Recognition
+
+| Technology | Purpose |
+|---|---|
+| ONNX | Model exchange and deployment format. |
+| ONNX Runtime | Running the integrated blister-pack detection model. |
+| YOLO-based object detection | Blister-pack condition detection. |
+| Google ML Kit Text Recognition | Recognising expiry-related text from medicine packaging. |
+
+### External APIs and Development Tools
+
+| Technology | Purpose |
+|---|---|
+| Geoapify Places API | Nearby pharmacy discovery. |
+| Postman | API testing and request validation. |
+| Git | Version control. |
+| GitHub | Source-code hosting and collaboration. |
+
+## 14. Backend and Service Integration
+
+SmartCare connects several application components and external services to support its core workflows.
+
+### Supabase
+
+Supabase provides backend services used by the application, including authentication and PostgreSQL-backed data access.
+
+It supports the storage and retrieval of application information required for medication management and related features.
+
+### Supabase Edge Functions
+
+Supabase Edge Functions are used for backend-side processing associated with the notification workflow.
+
+They help process relevant application events and support the missed-dose guardian notification process.
+
+### Firebase Cloud Messaging
+
+Firebase Cloud Messaging is integrated to support push notifications.
+
+It is used as part of the process of delivering relevant notifications to guardians.
+
+### Android AlarmManager
+
+AlarmManager is used for scheduling medication reminders and timed application events on Android devices.
+
+Its behaviour can be affected by Android background-execution policies, battery restrictions, device restarts and notification permissions.
+
+### External API Integration
+
+Geoapify is used for nearby pharmacy discovery, while Google Fused Location Provider supplies device-location information.
+
+These services allow SmartCare to connect application functionality with location-based information.
+
+## 15. Testing and Validation
+
+During development, individual components and application workflows were tested to verify their expected behaviour.
+
+Testing activities included:
+
+- Verifying user authentication and account access.
+- Checking Elder–Guardian pairing.
+- Testing medication management workflows.
+- Verifying scheduled medication reminders.
+- Testing the missed-dose escalation workflow with a reduced checkpoint interval.
+- Testing API requests and responses using Postman.
+- Verifying the backend notification integration.
+- Validating the exported ONNX model.
+- Checking the ONNX model input and output specifications.
+- Testing the pharmacy API integration.
+- Verifying that pharmacy results were successfully received and displayed.
+- Testing the expiry-date recognition and update workflow.
+
+### ONNX Model Validation
+
+The exported model was validated successfully during development.
+
+The validation confirmed:
+
+- ONNX IR version: 8.
+- ONNX opset: 18.
+- Input tensor: `images`.
+- Input shape: `[1, 3, 640, 640]`.
+- Output shape: `[1, 7, 8400]`.
+
+### Pharmacy API Testing
+
+The Geoapify integration was tested successfully during development. The application received 20 pharmacy results in a successful API response.
+
+Testing was performed as part of the academic prototype development process. It does not constitute clinical validation or a guarantee of reliability under every real-world device and network condition.
+
+## 16. Project Setup
+
+SmartCare is an Android application developed using Kotlin and Android Studio.
+
+The following are the general requirements for setting up the project.
 
 ### Prerequisites
 
 - Android Studio.
-- Android SDK compatible with the project's Gradle configuration.
-- A compatible JDK.
+- A compatible Android SDK.
+- JDK compatible with the project's Gradle configuration.
 - Git.
-- An Android emulator or physical Android device.
-- Access to the configured Supabase project.
-- Firebase project configuration for notification functionality.
+- A Supabase project.
+- Firebase project configuration for FCM.
 - Geoapify API key for pharmacy discovery.
 
-### Clone the repository
+### Step 1 — Clone the repository
 
 ```bash
-git clone <YOUR_SMARTCARE_GITHUB_REPOSITORY_URL>
+git clone https://github.com/PratikshaShetty-10/SmartCare-MedicationApp
 ```
 
-Open the cloned project in Android Studio and allow Gradle synchronization to complete.
+Move into the downloaded project directory:
 
-### Configure backend services
+```bash
+cd SmartCare-MedicationApp
+```
 
-The application requires the relevant backend configuration to connect to the Supabase project.
+### Step 2 — Open the project
 
-Configure the required project URL, API credentials, and any project-specific configuration expected by the Android source code.
+1. Launch Android Studio.
+2. Select **Open**.
+3. Choose the cloned SmartCare project directory.
+4. Allow Android Studio to synchronise the Gradle project.
+5. Resolve any SDK or dependency prompts required by the project.
 
-Ensure that the required backend resources are available, including the database structures, authentication configuration, and Edge Functions used by the application.
+### Step 3 — Configure backend services
 
-### Configure Firebase
+Configure the required Supabase project details using the configuration approach already defined in the source code.
 
-Set up the Firebase project and configure Firebase Cloud Messaging.
+Make sure the application has the appropriate backend URL and public client key.
 
-Add the appropriate Android Firebase configuration file to the location expected by the project.
+The Supabase database schema, authentication configuration, access policies and Edge Functions must be configured according to the project's implementation.
 
-Ensure that the required notification permissions and device settings are configured for testing.
+### Step 4 — Configure Firebase
 
-### Configure external APIs
+Set up the Firebase configuration required by the application.
 
-Configure the Geoapify API key and any other external-service credentials required by the project.
+Ensure that the Android application is registered with the appropriate Firebase project and that Firebase Cloud Messaging is configured.
 
-Do not commit private API keys, service-role credentials, Firebase private keys, or other sensitive configuration files to a public repository.
+### Step 5 — Configure Geoapify
 
-### Run the application
+Create or obtain a Geoapify API key and configure it using the project's existing secret-management approach.
 
-1. Open the project in Android Studio.
-2. Synchronize the Gradle project.
-3. Configure the required backend and external-service credentials.
-4. Connect an Android emulator or physical device.
-5. Build and run the application.
-6. Test the Elder and Guardian workflows using the required account and backend configuration.
+Do not commit private API keys or secret configuration files to a public repository.
 
-**Note:** Exact configuration filenames, Gradle commands, database setup scripts, and backend deployment instructions should be documented against the current repository rather than assumed.
+### Step 6 — Build and run
 
----
+1. Connect a compatible Android device or start an emulator.
+2. Allow Android Studio to complete Gradle synchronisation.
+3. Build the application.
+4. Run SmartCare on the selected device.
+5. Grant the permissions required by the features being tested, including notifications and location access where applicable.
 
-## 9. Security and Privacy Considerations
+**Note:** The exact configuration filenames, database setup instructions and Gradle commands should follow the files included in the repository. Never place private service credentials in publicly accessible source files.
 
-SmartCare handles information related to medication schedules, user accounts, caregiver relationships, and location.
+## 17. Project Limitations
 
-The following considerations are important:
+SmartCare is an academic software prototype. Although its major functionalities have been implemented and tested during development, certain real-world conditions require additional work.
 
-- Authentication should be required for protected application functionality.
-- Elder and Guardian permissions should be enforced according to their roles.
-- Backend access should be protected using appropriate authorization and database policies.
-- Sensitive credentials must not be stored in publicly accessible source files.
-- Location information should only be accessed with the necessary device permissions.
-- Notification payloads should avoid unnecessarily exposing sensitive medical information.
-- AI and OCR outputs should not be treated as definitive medical decisions.
+### Device and Notification Reliability
 
-A production deployment would require additional security review, privacy assessment, access-control verification, and reliability testing.
+Android may restrict background execution depending on the device, battery settings and operating-system version.
 
----
+Device restarts, notification permissions and battery optimisation may affect scheduled reminders and notification delivery.
 
-## 10. Current Implementation Status
+### Network Dependency
 
-SmartCare has been developed as a functional academic project prototype.
+Some application features depend on backend services and internet connectivity.
 
-The following table summarizes the major implemented areas:
+Temporary network failures may affect data synchronisation, backend processing, push notifications and API responses.
 
-| Module | Implementation |
-|---|---|
-| Elder and Guardian accounts | Implemented |
-| Elder–Guardian pairing | Implemented |
-| Medication management | Implemented |
-| Android medication reminders | Implemented |
-| Missed-dose escalation | Implemented; timing configurable |
-| Guardian notification integration | Implemented |
-| Medication adherence tracking | Implemented |
-| Adherence reporting | Implemented |
-| AI blister-pack detection | Integrated |
-| Expiry-date OCR | Integrated |
-| SOS and location functionality | Implemented |
-| Nearby pharmacy discovery | Integrated and API-tested |
-| Backend and database integration | Implemented |
+### AI Detection Accuracy
 
-Feature availability and reliability can depend on backend configuration, device permissions, network connectivity, notification settings, and external-service availability.
+The blister-pack detection model may produce incorrect predictions under certain image conditions.
 
----
+Its output should be treated as assistance rather than a definitive assessment.
 
-## 11. Known Limitations and Future Improvements
+### OCR Accuracy
 
-SmartCare is an academic prototype and has not been clinically validated or certified as a medical device.
+Expiry-date recognition may be affected by image quality, packaging design, text visibility and date formats.
 
-Some important areas require further testing and improvement before a production deployment.
+Manual verification is important before relying on the recognised date.
 
-### Reliability improvements
-- Test reminder restoration after device restart.
-- Improve handling of battery restrictions and Android background execution limits.
-- Validate escalation behaviour under network interruptions.
-- Improve retry and recovery handling for notification delivery.
-- Verify duplicate-event prevention and acknowledgement handling.
+### Location Availability
 
-### AI improvements
-- Improve blister-pack detection accuracy across different medicine packaging types.
-- Evaluate model performance under different lighting conditions and camera angles.
-- Reduce false detections and misclassification.
-- Improve expiry-date extraction for different printing styles and date formats.
-- Add stronger user confirmation for uncertain AI and OCR results.
+SOS and nearby pharmacy functionality depend on location permissions and the availability of device-location services.
 
-### Caregiver experience
-- Improve notification acknowledgement and dismissal workflows.
-- Expand adherence reporting and historical insights.
-- Improve communication between connected Elder and Guardian accounts.
-- Enhance emergency communication and recovery workflows.
+### Medical Reliability
 
-### Security and production readiness
-- Perform comprehensive authorization and database-policy testing.
-- Review sensitive information handling.
-- Test across different Android devices and OS versions.
-- Perform broader integration and usability testing.
+A recorded Taken acknowledgement does not independently establish that a medicine was consumed.
 
----
+SmartCare is not a clinically validated medical device and should not replace professional medical advice or supervision.
 
-## 12. Project Information
+## 18. Future Enhancements
 
-| Detail | Description |
-|---|---|
-| Project name | SmartCare |
-| Full title | SmartCare — Medication Adherence and Emergency Response System |
-| Project type | Academic Major Project |
-| Platform | Android |
-| Development language | Kotlin |
-| UI framework | Jetpack Compose |
-| Backend | Supabase |
-| Database | PostgreSQL |
-| AI integration | ONNX Runtime and ML Kit OCR |
-| Notifications | Firebase Cloud Messaging |
-| External API | Geoapify |
-| Location services | Google Fused Location Provider |
+SmartCare can be extended further to improve reliability, usability and the overall caregiver experience.
 
----
+Potential future enhancements include:
 
-## 13. Acknowledgement
+1. **Improved Notification Reliability:** Strengthen reminder scheduling and recovery mechanisms for device restarts and background restrictions.
+2. **Advanced Escalation Controls:** Provide more configurable escalation stages and caregiver notification preferences.
+3. **Improved AI Accuracy:** Expand model training and validation using more diverse blister-pack images and real-world conditions.
+4. **Enhanced OCR Processing:** Improve expiry-date extraction, format handling and user verification.
+5. **Medication Inventory Management:** Provide more detailed medicine stock tracking and replenishment reminders.
+6. **Improved Adherence Analytics:** Add more detailed reports and historical medication activity visualisations.
+7. **Caregiver Coordination:** Support additional caregivers and more flexible family coordination.
+8. **Security Improvements:** Continue strengthening access control, data protection and backend security policies.
+9. **Usability Improvements:** Make the Elder interface more accessible through larger text, clearer navigation and simplified interactions.
+10. **Comprehensive Real-World Testing:** Evaluate application behaviour across different Android versions, devices, network conditions and usage scenarios.
+
+These enhancements would help move the academic prototype towards a more robust and dependable application.
+
+## 19. Project Team and Acknowledgements
 
 SmartCare was developed as a collaborative academic project.
 
-The application brings together Android development, backend integration, database management, AI-based image processing, notification systems, and external API integrations.
+The project involved multiple areas of development, including Android application development, backend integration, database setup, user-interface development and AI model integration.
 
-The project represents a team effort to explore how software engineering can be applied to a meaningful real-world problem: supporting elderly individuals and helping their families coordinate care.
+We would like to acknowledge the guidance and support provided throughout the project.
+
+**Project Details**
+
+- **Project Title:** SmartCare — Medication Adherence and Emergency Response System
+- **Project Type:** Academic Major Project
+- **Academic Year:** 2026–2027
+- **Institution:** Canara Engineering College
+- **Department:** Computer Science and Engineering
+
+**Project Team**
+
+- Maya Kamath
+- Meghana Madev Naik
+- N S Suhani
+- Prathiksha Shetty
+
+**Project Guide:** Ms. Saritha M
+
+**Project Mentor:** Mr. Praharsh T
+
+We sincerely thank our project guide and mentor for their valuable guidance, suggestions and support throughout the development of SmartCare.
+
+We also acknowledge the contributions of all team members who worked together to design, implement, integrate and test the different components of the application.
+
+## 20. Copyright and Usage Rights
+
+**Copyright © 2026 SmartCare Project Team. All Rights Reserved.**
+
+SmartCare — Medication Adherence and Emergency Response System is an original academic project developed collaboratively by its credited student contributors.
+
+The original source code, project documentation, application logic, original designs and other original materials in this repository are protected by applicable copyright laws.
+
+**No open-source licence is granted for this project.**
+
+Unless prior written permission is obtained from the respective copyright holder(s), no permission is granted to reproduce, copy, modify, redistribute, republish or commercially use the original materials contained in this repository.
+
+Making this repository publicly accessible for viewing does not transfer ownership or grant a general licence to reuse its original materials.
+
+All third-party libraries, frameworks, APIs, models and tools used by the project remain subject to their respective owners' licences, terms and conditions. This notice does not claim ownership over third-party materials.
+
+The project guide and mentor are acknowledged for their academic guidance and supervision. This acknowledgement does not imply that they are software authors or copyright holders.
+
+For permission to use the original project materials, contact the credited project contributors and obtain the necessary written authorisation.
+
+## 21. Disclaimer
+
+SmartCare is an academic project developed for educational and demonstration purposes.
+
+It is intended to demonstrate how Android application development, backend services, notification systems, AI-based image processing, text recognition and location-based APIs can be combined to support medication management and caregiver assistance.
+
+The application has not been certified as a medical device and has not undergone clinical validation.
+
+AI detection and OCR outputs may contain errors. Medication acknowledgement does not guarantee actual medicine consumption. Notifications and location services may be affected by device settings, permissions, network availability and operating-system restrictions.
+
+SmartCare must not be used as a replacement for professional medical advice, diagnosis, treatment or emergency services.
 
 ---
 
-## 14. Disclaimer
-
-SmartCare is an academic software prototype developed for educational and demonstration purposes.
-
-It is not a substitute for professional medical advice, medical supervision, or emergency services.
-
-Medication acknowledgement in the application does not confirm actual medicine consumption. AI blister-pack detection and OCR-based expiry recognition may produce inaccurate results and must be independently verified.
-
-Users should not rely solely on this application for medication safety or emergency response.
+**SmartCare — Making Medication Management More Connected, Organised and Accessible.**
