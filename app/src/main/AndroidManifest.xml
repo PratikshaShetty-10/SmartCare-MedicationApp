@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ========================================================= -->
+    <!-- EXISTING PERMISSIONS                                      -->
+    <!-- ========================================================= -->
+
+    <!-- Network permission for Codespaces/Flask API -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ========================================================= -->
+    <!-- CAMERA PERMISSIONS FOR YOLO SCANNER                      -->
+    <!-- ========================================================= -->
+
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
+    <!-- ========================================================= -->
+    <!-- LOCATION PERMISSIONS FOR EXISTING SOS FEATURE            -->
+    <!-- ========================================================= -->
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- ========================================================= -->
+    <!-- SMS PERMISSION                                            -->
+    <!-- ========================================================= -->
+
+    <uses-permission
+        android:name="android.permission.SEND_SMS"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <!-- ========================================================= -->
+    <!-- EXISTING FOREGROUND SERVICE PERMISSIONS                  -->
+    <!-- ========================================================= -->
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Required by existing SOS/location foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Required by SOS alarm/audio service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- ========================================================= -->
+    <!-- MEDICATION ESCALATION PERMISSIONS                         -->
+    <!-- ========================================================= -->
+
+    <!-- Required for medication vibration -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Required so medication alarms can be recovered after reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+        Exact alarms are used by EscalationScheduler.
+
+        On Android 12+, the app may need the user to grant
+        exact-alarm permission. EscalationScheduler already
+        contains a fallback when exact alarms are unavailable.
+    -->
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+
+    <application
+        android:name=".SmartCareApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SmartCare">
+
+        <!-- ===================================================== -->
+        <!-- MAIN ACTIVITY                                         -->
+        <!-- ===================================================== -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.SmartCare"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+
+        <!-- ===================================================== -->
+        <!-- MEDICATION POPUP                                      -->
+        <!-- ===================================================== -->
+
+        <activity
+            android:name=".escalation.DosePopupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SmartCare" />
+
+
+        <!-- ===================================================== -->
+        <!-- MANUAL SOS SERVICE                                    -->
+        <!-- ===================================================== -->
+
+        <!--
+            Manual SOS service.
+
+            Handles:
+            - loud SOS siren
+            - foreground SOS notification
+            - Elder location access
+            - SOS fullscreen popup
+        -->
+        <service
+            android:name=".notifications.services.SosService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback|location" />
+
+
+        <!-- ===================================================== -->
+        <!-- SOS FULLSCREEN POPUP                                  -->
+        <!-- ===================================================== -->
+
+        <activity
+            android:name=".notifications.service.SosPopupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SmartCare" />
+
+
+        <!-- ===================================================== -->
+        <!-- EXISTING EMERGENCY/SOS SERVICE                       -->
+        <!-- ===================================================== -->
+
+        <!--
+            Existing automatic emergency receiver service.
+            KEEP this unchanged because it belongs to the
+            existing emergency/escalation functionality.
+        -->
+        <service
+            android:name=".emergency.services.EscalationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+
+        <!-- Existing automatic emergency receiver -->
+        <receiver
+            android:name=".emergency.services.EscalationReceiver"
+            android:exported="false" />
+
+
+        <!-- ===================================================== -->
+        <!-- MEDICATION ESCALATION                                 -->
+        <!-- ===================================================== -->
+
+        <!--
+            Owns TTS and alarm audio for medication escalation.
+
+            IMPORTANT:
+            This is mediaPlayback, NOT location.
+        -->
+        <service
+            android:name=".escalation.DoseAudioService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+
+        <!--
+            Receives each medication escalation stage:
+
+            T+0  -> Stage 1
+            T+5  -> Stage 2
+            T+10 -> Stage 3
+            T+15 -> Stage 4 / MISSED
+        -->
+        <receiver
+            android:name=".escalation.DoseAlarmReceiver"
+            android:exported="false" />
+
+
+        <!--
+            Recovers medication alarms after:
+            - device reboot
+            - app update
+            - exact-alarm permission change
+        -->
+        <receiver
+            android:name=".escalation.DoseBootReceiver"
+            android:exported="true">
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.BOOT_COMPLETED" />
+
+                <action
+                    android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+
+                <action
+                    android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+
+            </intent-filter>
+
+        </receiver>
+
+
+        <!-- ===================================================== -->
+        <!-- FIREBASE CLOUD MESSAGING                              -->
+        <!-- ===================================================== -->
+
+        <!--
+            Receives:
+            - existing SOS/emergency FCM messages
+            - new missed-dose guardian messages
+
+            The FcmService itself keeps these two flows separate.
+        -->
+        <service
+            android:name=".notifications.services.FcmService"
+            android:exported="false">
+
+            <intent-filter>
+                <action
+                    android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+
+        </service>
+
+    </application>
+
+</manifest>
