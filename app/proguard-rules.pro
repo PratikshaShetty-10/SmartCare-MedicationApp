@@ -1,0 +1,2 @@
+-keep class io.ktor.client.plugins.** { *; }
+-keep class io.github.jan.supabase.** { *; }
